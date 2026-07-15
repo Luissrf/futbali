@@ -1,0 +1,181 @@
+// AI for every player that is not the human-controlled one: teammates, opponents, both goalkeepers.
+
+const FORMATION = [
+  // role, local x (0..1 across pitch width), local y (0..1 own goal -> rival goal)
+  { role: 'GK', lx: 0.5, ly: 0.05 },
+  { role: 'DEF', lx: 0.30, ly: 0.24 },
+  { role: 'DEF', lx: 0.70, ly: 0.24 },
+  { role: 'MID', lx: 0.50, ly: 0.50 },
+  { role: 'FWD', lx: 0.50, ly: 0.72 },
+];
+
+function ownGoalPos(team) {
+  return { x: FIELD.CX, y: team === 'A' ? FIELD.BOTTOM : FIELD.TOP };
+}
+function rivalGoalPos(team) {
+  return { x: FIELD.CX, y: team === 'A' ? FIELD.TOP : FIELD.BOTTOM };
+}
+function attackDir(team) { return team === 'A' ? -1 : 1; } // sign applied to ly progress in world Y
+
+function homePosition(team, lx, ly) {
+  const ownY = ownGoalPos(team).y;
+  const dir = attackDir(team);
+  return {
+    x: FIELD.LEFT + lx * FIELD.PITCH_W,
+    y: ownY + dir * ly * FIELD.PITCH_H,
+  };
+}
+
+function updateAI(dt, state) {
+  const { players, ball } = state;
+
+  for (const p of players) {
+    if (p === state.controlledPlayer) continue;
+    if (p.isGK) { updateGoalkeeper(p, dt, state); continue; }
+
+    const carrying = state.possessor === p;
+    if (carrying) {
+      updateCarrierAI(p, dt, state);
+      continue;
+    }
+
+    const chaser = getChaser(p.team, state);
+    if (chaser === p) {
+      chase(p, ball, dt, 1.0);
+    } else {
+      supportFormation(p, dt, state);
+    }
+  }
+}
+
+// pick the outfield player (per team) best placed to chase the ball
+function getChaser(team, state) {
+  let best = null, bestD = Infinity;
+  for (const p of state.players) {
+    if (p.team !== team || p.isGK) continue;
+    const d = dist(p, state.ball);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
+
+function chase(p, ball, dt, urgency) {
+  const leadX = ball.x + ball.vx * 0.12;
+  const leadY = ball.y + ball.vy * 0.12;
+  p.steer(leadX - p.x, leadY - p.y, dt, urgency);
+}
+
+function supportFormation(p, dt, state) {
+  const home = { x: p.homeX, y: p.homeY };
+  const ball = state.ball;
+
+  // elastic band: shift home position toward the ball, more for advanced roles
+  const pull = p.role === 'FWD' ? 0.38 : p.role === 'MID' ? 0.3 : 0.16;
+  const dir = attackDir(p.team);
+  const push = state.possessor && state.possessor.team === p.team ? 26 : 0; // nudge forward when team attacks
+
+  let tx = home.x + (ball.x - home.x) * pull;
+  let ty = home.y + (ball.y - home.y) * pull * 0.6 + dir * push * 0.4;
+
+  tx = clamp(tx, FIELD.LEFT + 14, FIELD.RIGHT - 14);
+  ty = clamp(ty, FIELD.TOP + 14, FIELD.BOTTOM - 14);
+
+  const d = Math.hypot(tx - p.x, ty - p.y);
+  p.steer(tx - p.x, ty - p.y, dt, d > 6 ? 0.75 : 0.2);
+}
+
+function updateCarrierAI(p, dt, state) {
+  const goal = rivalGoalPos(p.team);
+  const distToGoal = Math.hypot(goal.x - p.x, goal.y - p.y);
+
+  // shoot when close enough and reasonably centred
+  if (distToGoal < 190 && Math.abs(goal.x - p.x) < 130) {
+    aiKick(p, state, goal.x, goal.y, 1.0, true);
+    return;
+  }
+
+  // occasionally look for a forward pass to a teammate ahead of them
+  p.passCooldown = (p.passCooldown || 0) - dt;
+  if (p.passCooldown <= 0) {
+    const dir = attackDir(p.team);
+    const mate = state.players.find((o) => o.team === p.team && o !== p && !o.isGK &&
+      (o.y - p.y) * dir > 40 && Math.abs(o.x - p.x) < 160 && dist(o, p) < 220);
+    if (mate && Math.random() < 0.5) {
+      aiKick(p, state, mate.x + mate.vx * 0.2, mate.y + mate.vy * 0.2, 0.55, false);
+      p.passCooldown = 1.2;
+      return;
+    }
+    p.passCooldown = 0.6;
+  }
+
+  // dribble toward goal, weaving slightly away from nearest defender
+  const defender = nearestOpponent(p, state);
+  let steerX = goal.x - p.x;
+  let steerY = goal.y - p.y;
+  if (defender && dist(defender, p) < 45) {
+    const awayX = p.x - defender.x, awayY = p.y - defender.y;
+    steerX += awayX * 1.4;
+    steerY += awayY * 1.4;
+  }
+  p.steer(steerX, steerY, dt, 1.0);
+}
+
+function nearestOpponent(p, state) {
+  let best = null, bestD = Infinity;
+  for (const o of state.players) {
+    if (o.team === p.team) continue;
+    const d = dist(o, p);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  return best;
+}
+
+function aiKick(p, state, tx, ty, power, isShot) {
+  const dx = tx - state.ball.x, dy = ty - state.ball.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = (isShot ? 300 : 210) * power + Math.random() * 20;
+  const inaccuracy = isShot ? 0.16 : 0.08;
+  const ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * inaccuracy;
+  state.ball.kick(Math.cos(ang) * speed, Math.sin(ang) * speed);
+  state.ball.lastTouchTeam = p.team;
+  state.ball.lastTouchPlayer = p;
+  state.possessor = null;
+  p.kickCooldown = 0.25;
+  SFX.kick();
+}
+
+function updateGoalkeeper(gk, dt, state) {
+  const ball = state.ball;
+  const own = ownGoalPos(gk.team);
+  const dir = attackDir(gk.team);
+  const lineY = own.y - dir * 20; // stands a little in front of the line
+  const boxHalf = FIELD.BOX_W / 2 - gk.radius;
+
+  const ballInDanger = Math.abs(ball.y - own.y) < FIELD.BOX_D + 40 && Math.abs(ball.x - FIELD.CX) < FIELD.BOX_W / 2 + 30;
+
+  let tx = clamp(ball.x, FIELD.CX - boxHalf, FIELD.CX + boxHalf);
+  let ty = lineY;
+
+  if (ballInDanger) {
+    // rush toward the ball a bit when it's dangerously close
+    const rush = clamp((FIELD.BOX_D + 40 - Math.abs(ball.y - own.y)) / (FIELD.BOX_D + 40), 0, 1);
+    ty = lineY - dir * rush * 26;
+    tx = clamp(ball.x, FIELD.CX - FIELD.GOAL_W / 2 - 6, FIELD.CX + FIELD.GOAL_W / 2 + 6);
+  }
+
+  gk.steer(tx - gk.x, ty - gk.y, dt, ballInDanger ? 1 : 0.6);
+
+  // if carrying (caught the ball), clear it upfield after a short hold
+  if (state.possessor === gk) {
+    gk.clearTimer = (gk.clearTimer || 0) - dt;
+    if (gk.clearTimer <= 0) {
+      const targetMate = state.players.find((o) => o.team === gk.team && !o.isGK && (o.role === 'MID' || o.role === 'DEF'));
+      const tx2 = targetMate ? targetMate.x : FIELD.CX;
+      const ty2 = own.y + dir * 220;
+      aiKick(gk, state, tx2, ty2, 0.85, false);
+      gk.clearTimer = 1.4;
+    }
+  } else {
+    gk.clearTimer = 0.35;
+  }
+}
