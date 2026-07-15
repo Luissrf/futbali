@@ -1,36 +1,26 @@
-// Touch joystick + action buttons + keyboard fallback, unified into a single INPUT state.
+// Touch joystick + action buttons + keyboard fallback. Reusable per-player "rig" factory so
+// a second local player (2-player mode) can get an independent control set on the same page.
+// Rigs report raw, un-mirrored vectors — any left/right inversion for a player seated at the
+// opposite edge of the screen is applied where the vector is consumed (main.js), not here.
 
-const INPUT = {
-  move: { x: 0, y: 0 },
-  shootDown: false,
-  shootStartTime: 0,
-  shootReleased: false,
-  releasedPower: 0,
-  switchPressed: false,
-  CHARGE_MAX: 0.85,
-};
+function createTouchRig({ zone, base, stick, shoot, switchBtn, maxR }) {
+  const rig = {
+    move: { x: 0, y: 0 },
+    shootDown: false,
+    shootStartTime: 0,
+    shootReleased: false,
+    releasedPower: 0,
+    switchPressed: false,
+    CHARGE_MAX: 0.85,
+  };
 
-(function setupInput() {
-  const zoneEl = document.getElementById('joystick-zone');
-  const baseEl = document.getElementById('joystick-base');
-  const stickEl = document.getElementById('joystick-stick');
-  const shootBtn = document.getElementById('btn-shoot');
-  const switchBtn = document.getElementById('btn-switch');
-
-  const touchMove = { x: 0, y: 0 };
-  const keyMove = { x: 0, y: 0 };
-  const keys = { up: false, down: false, left: false, right: false };
-  let joystickPointerId = null;
-
-  function syncMove() {
-    if (joystickPointerId !== null) {
-      INPUT.move.x = touchMove.x;
-      INPUT.move.y = touchMove.y;
-    } else {
-      INPUT.move.x = keyMove.x;
-      INPUT.move.y = keyMove.y;
-    }
-  }
+  const zoneEl = document.getElementById(zone);
+  const baseEl = document.getElementById(base);
+  const stickEl = document.getElementById(stick);
+  const shootBtn = document.getElementById(shoot);
+  const switchBtnEl = document.getElementById(switchBtn);
+  const radius = maxR || 38;
+  let pointerId = null;
 
   function baseCenter() {
     const r = baseEl.getBoundingClientRect();
@@ -40,93 +30,94 @@ const INPUT = {
   function updateJoystick(clientX, clientY) {
     const c = baseCenter();
     let dx = clientX - c.x, dy = clientY - c.y;
-    const maxR = 38;
     const len = Math.hypot(dx, dy);
-    if (len > maxR) { dx = (dx / len) * maxR; dy = (dy / len) * maxR; }
+    if (len > radius) { dx = (dx / len) * radius; dy = (dy / len) * radius; }
     stickEl.style.transform = `translate(${dx}px, ${dy}px)`;
-    touchMove.x = dx / maxR;
-    touchMove.y = dy / maxR;
-    syncMove();
+    rig.move.x = dx / radius;
+    rig.move.y = dy / radius;
   }
 
   function resetJoystick() {
-    joystickPointerId = null;
-    touchMove.x = 0; touchMove.y = 0;
+    pointerId = null;
+    rig.move.x = 0; rig.move.y = 0;
     stickEl.style.transform = 'translate(0px,0px)';
-    syncMove();
   }
 
   zoneEl.addEventListener('pointerdown', (e) => {
-    joystickPointerId = e.pointerId;
+    pointerId = e.pointerId;
     zoneEl.setPointerCapture(e.pointerId);
     updateJoystick(e.clientX, e.clientY);
   });
   zoneEl.addEventListener('pointermove', (e) => {
-    if (e.pointerId === joystickPointerId) updateJoystick(e.clientX, e.clientY);
+    if (e.pointerId === pointerId) updateJoystick(e.clientX, e.clientY);
   });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) =>
-    zoneEl.addEventListener(ev, (e) => { if (e.pointerId === joystickPointerId) resetJoystick(); })
+    zoneEl.addEventListener(ev, (e) => { if (e.pointerId === pointerId) resetJoystick(); })
   );
 
   function startShoot(e) {
     e.preventDefault();
-    if (INPUT.shootDown) return;
-    INPUT.shootDown = true;
-    INPUT.shootStartTime = performance.now();
+    if (rig.shootDown) return;
+    rig.shootDown = true;
+    rig.shootStartTime = performance.now();
   }
   function endShoot(e) {
     e.preventDefault();
-    if (!INPUT.shootDown) return;
-    const held = (performance.now() - INPUT.shootStartTime) / 1000;
-    INPUT.releasedPower = Math.max(0.18, Math.min(1, held / INPUT.CHARGE_MAX));
-    INPUT.shootDown = false;
-    INPUT.shootReleased = true;
+    if (!rig.shootDown) return;
+    const held = (performance.now() - rig.shootStartTime) / 1000;
+    rig.releasedPower = Math.max(0.18, Math.min(1, held / rig.CHARGE_MAX));
+    rig.shootDown = false;
+    rig.shootReleased = true;
   }
   shootBtn.addEventListener('pointerdown', startShoot);
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => shootBtn.addEventListener(ev, endShoot));
 
-  switchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); INPUT.switchPressed = true; });
+  switchBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.switchPressed = true; });
 
-  function recomputeKeyMove() {
+  rig._keyShootDown = () => { if (!rig.shootDown) { rig.shootDown = true; rig.shootStartTime = performance.now(); } };
+  rig._keyShootUp = () => {
+    if (!rig.shootDown) return;
+    const held = (performance.now() - rig.shootStartTime) / 1000;
+    rig.releasedPower = Math.max(0.18, Math.min(1, held / rig.CHARGE_MAX));
+    rig.shootDown = false;
+    rig.shootReleased = true;
+  };
+
+  return rig;
+}
+
+// keyboard fallback for desktop testing — each rig gets its own independent key set
+function wireKeyboard(rig, map) {
+  const keys = { up: false, down: false, left: false, right: false };
+  function recompute() {
     let x = 0, y = 0;
     if (keys.left) x -= 1;
     if (keys.right) x += 1;
     if (keys.up) y -= 1;
     if (keys.down) y += 1;
     const len = Math.hypot(x, y);
-    keyMove.x = len ? x / len : 0;
-    keyMove.y = len ? y / len : 0;
-    syncMove();
+    rig.move.x = len ? x / len : 0;
+    rig.move.y = len ? y / len : 0;
   }
-
   window.addEventListener('keydown', (e) => {
-    switch (e.code) {
-      case 'ArrowUp': case 'KeyW': keys.up = true; recomputeKeyMove(); break;
-      case 'ArrowDown': case 'KeyS': keys.down = true; recomputeKeyMove(); break;
-      case 'ArrowLeft': case 'KeyA': keys.left = true; recomputeKeyMove(); break;
-      case 'ArrowRight': case 'KeyD': keys.right = true; recomputeKeyMove(); break;
-      case 'Space':
-        e.preventDefault();
-        if (!INPUT.shootDown) { INPUT.shootDown = true; INPUT.shootStartTime = performance.now(); }
-        break;
-      case 'ShiftLeft': case 'KeyE': INPUT.switchPressed = true; break;
-    }
+    if (map.up.includes(e.code)) { keys.up = true; recompute(); }
+    else if (map.down.includes(e.code)) { keys.down = true; recompute(); }
+    else if (map.left.includes(e.code)) { keys.left = true; recompute(); }
+    else if (map.right.includes(e.code)) { keys.right = true; recompute(); }
+    else if (map.shoot.includes(e.code)) { e.preventDefault(); rig._keyShootDown(); }
+    else if (map.switchKey.includes(e.code)) { rig.switchPressed = true; }
   });
   window.addEventListener('keyup', (e) => {
-    switch (e.code) {
-      case 'ArrowUp': case 'KeyW': keys.up = false; recomputeKeyMove(); break;
-      case 'ArrowDown': case 'KeyS': keys.down = false; recomputeKeyMove(); break;
-      case 'ArrowLeft': case 'KeyA': keys.left = false; recomputeKeyMove(); break;
-      case 'ArrowRight': case 'KeyD': keys.right = false; recomputeKeyMove(); break;
-      case 'Space':
-        e.preventDefault();
-        if (INPUT.shootDown) {
-          const held = (performance.now() - INPUT.shootStartTime) / 1000;
-          INPUT.releasedPower = Math.max(0.18, Math.min(1, held / INPUT.CHARGE_MAX));
-          INPUT.shootDown = false;
-          INPUT.shootReleased = true;
-        }
-        break;
-    }
+    if (map.up.includes(e.code)) { keys.up = false; recompute(); }
+    else if (map.down.includes(e.code)) { keys.down = false; recompute(); }
+    else if (map.left.includes(e.code)) { keys.left = false; recompute(); }
+    else if (map.right.includes(e.code)) { keys.right = false; recompute(); }
+    else if (map.shoot.includes(e.code)) { e.preventDefault(); rig._keyShootUp(); }
   });
-})();
+}
+
+const INPUT = createTouchRig({ zone: 'joystick-zone', base: 'joystick-base', stick: 'joystick-stick', shoot: 'btn-shoot', switchBtn: 'btn-switch', maxR: 38 });
+const INPUT2 = createTouchRig({ zone: 'joystick-zone-p2', base: 'joystick-base-p2', stick: 'joystick-stick-p2', shoot: 'btn-shoot-p2', switchBtn: 'btn-switch-p2', maxR: 33 });
+
+wireKeyboard(INPUT, { up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], shoot: ['Space'], switchKey: ['KeyQ'] });
+wireKeyboard(INPUT2, { up: ['Numpad8'], down: ['Numpad5', 'Numpad2'], left: ['Numpad4'], right: ['Numpad6'], shoot: ['NumpadEnter', 'Enter'], switchKey: ['NumpadAdd'] });

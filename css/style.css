@@ -196,6 +196,68 @@ html, body {
   background: linear-gradient(#ffd23f, #ff5e3a);
 }
 
+/* ---------- Player 2 controls (2-player mode, mirrored at the top) ---------- */
+#controls-p2 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 54px 14px 0;
+  padding-top: max(54px, calc(env(safe-area-inset-top) + 46px));
+  z-index: 10;
+  pointer-events: none;
+}
+
+#joystick-zone-p2 { width: 110px; height: 110px; pointer-events: auto; }
+#joystick-base-p2 {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  border: 2px solid rgba(255,255,255,0.35);
+  position: relative;
+}
+#joystick-stick-p2 {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.75);
+  position: absolute;
+  left: 26px;
+  top: 26px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+#action-zone-p2 { display: flex; align-items: flex-start; gap: 8px; pointer-events: auto; }
+#action-zone-p2 .action-btn.big { width: 68px; height: 68px; font-size: 12px; }
+#action-zone-p2 .action-btn.small { width: 46px; height: 46px; font-size: 8px; margin-top: 10px; margin-bottom: 0; }
+
+#power-meter-p2 {
+  position: absolute;
+  right: 20px;
+  top: max(54px, calc(env(safe-area-inset-top) + 46px));
+  width: 8px;
+  height: 100px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#power-meter-p2.visible { opacity: 1; }
+#power-fill-p2 {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(#ffd23f, #ff5e3a);
+}
+
 /* ---------- Overlays ---------- */
 .overlay {
   position: absolute;
@@ -291,8 +353,21 @@ html, body {
 .menu-card {
   max-height: 88vh;
   max-height: 88dvh;
-  overflow-y: auto;
   width: min(340px, 88vw);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.menu-scroll {
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 28px 30px 6px;
+}
+.menu-footer {
+  flex-shrink: 0;
+  padding: 10px 30px 28px;
 }
 .picker-row { margin-bottom: 10px; text-align: left; }
 .picker-label {
@@ -312,6 +387,8 @@ html, body {
   gap: 5px;
   max-height: 128px;
   overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   padding: 4px;
   background: rgba(0,0,0,0.2);
   border-radius: 10px;
@@ -385,8 +462,70 @@ html, body {
   border-color: #ffd23f;
   transform: scale(1.1);
 }
+.skin-swatch.locked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  opacity: 0.65;
+  filter: grayscale(0.4);
+}
 
 .hidden { display: none; }
+
+/* ---------- Splash screen ---------- */
+.splash-card {
+  width: min(300px, 88vw);
+  padding: 40px 30px;
+}
+.splash-emblem {
+  font-size: 54px;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+}
+.splash-card h1 { font-size: 42px; }
+.splash-card .subtitle { margin-bottom: 30px; }
+
+/* ---------- Coins + missions ---------- */
+.coin-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,210,63,0.15);
+  border: 1px solid rgba(255,210,63,0.35);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-weight: 800;
+  font-size: 14px;
+  color: #ffd23f;
+  margin-bottom: 14px;
+}
+
+.mission-row {
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.mission-row.done { opacity: 0.55; }
+.mission-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.mission-reward { color: #ffd23f; font-weight: 700; white-space: nowrap; }
+.mission-bar {
+  height: 5px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.mission-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd23f, #ff5e3a);
+}
 
 /* ---------- Toast ---------- */
 #egg-toast {
@@ -404,10 +543,8 @@ html, body {
   opacity: 0;
   transition: transform 0.35s ease, opacity 0.35s ease;
   pointer-events: none;
-  white-space: nowrap;
-  max-width: 90vw;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  max-width: min(320px, 90vw);
+  line-height: 1.4;
 }
 #egg-toast.show {
   transform: translate(-50%, 0);

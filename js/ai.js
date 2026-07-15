@@ -17,10 +17,12 @@ function rivalGoalPos(team) {
 }
 function attackDir(team) { return team === 'A' ? -1 : 1; } // sign applied to ly progress in world Y
 
-// only the AI-only rival team (B) is scaled by the chosen difficulty; the human's own team plays at a neutral baseline
+// only the AI-only rival team (B) is scaled by the chosen difficulty; in 2-player mode team B
+// is human-controlled too, so it plays at the same neutral baseline as team A
 const NEUTRAL_DIFF = { speedMul: 1, accuracyMul: 1, tackleMul: 1, gkMul: 1 };
-function diffFor(team) {
-  return team === 'B' && typeof RUNTIME !== 'undefined' ? RUNTIME.difficulty : NEUTRAL_DIFF;
+function diffFor(team, state) {
+  const twoPlayer = state && state.twoPlayer;
+  return team === 'B' && !twoPlayer && typeof RUNTIME !== 'undefined' ? RUNTIME.difficulty : NEUTRAL_DIFF;
 }
 
 function homePosition(team, lx, ly) {
@@ -36,7 +38,7 @@ function updateAI(dt, state) {
   const { players, ball } = state;
 
   for (const p of players) {
-    if (p === state.controlledPlayer) continue;
+    if (p === state.controlledPlayer || p === state.controlledPlayerB) continue;
     if (p.isGK) { updateGoalkeeper(p, dt, state); continue; }
 
     const carrying = state.possessor === p;
@@ -47,7 +49,7 @@ function updateAI(dt, state) {
 
     const chaser = getChaser(p.team, state);
     if (chaser === p) {
-      chase(p, ball, dt, diffFor(p.team).speedMul);
+      chase(p, ball, dt, diffFor(p.team, state).speedMul);
     } else {
       supportFormation(p, dt, state);
     }
@@ -93,7 +95,7 @@ function supportFormation(p, dt, state) {
 function updateCarrierAI(p, dt, state) {
   const goal = rivalGoalPos(p.team);
   const distToGoal = Math.hypot(goal.x - p.x, goal.y - p.y);
-  const diff = diffFor(p.team);
+  const diff = diffFor(p.team, state);
 
   // shoot when close enough and reasonably centred
   if (distToGoal < 220 && Math.abs(goal.x - p.x) < 150) {
@@ -142,7 +144,7 @@ function aiKick(p, state, tx, ty, power, isShot) {
   const len = Math.hypot(dx, dy) || 1;
   const speed = (isShot ? 300 : 210) * power + Math.random() * 20;
   const baseInaccuracy = isShot ? 0.16 : 0.08;
-  const inaccuracy = baseInaccuracy / diffFor(p.team).accuracyMul;
+  const inaccuracy = baseInaccuracy / diffFor(p.team, state).accuracyMul;
   const ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * inaccuracy;
   state.ball.kick(Math.cos(ang) * speed, Math.sin(ang) * speed);
   state.ball.lastTouchTeam = p.team;
@@ -156,7 +158,7 @@ function updateGoalkeeper(gk, dt, state) {
   const ball = state.ball;
   const own = ownGoalPos(gk.team);
   const dir = attackDir(gk.team);
-  const diff = diffFor(gk.team);
+  const diff = diffFor(gk.team, state);
   const lineY = own.y - dir * 22; // stands a little in front of the line
   const boxHalf = FIELD.BOX_W / 2 - gk.radius;
 

@@ -47,56 +47,98 @@
   <!-- Power meter -->
   <div id="power-meter"><div id="power-fill"></div></div>
 
+  <!-- Player 2 controls (only shown in 2-player mode), mirrored at the top of the screen -->
+  <div id="controls-p2" class="hidden">
+    <div id="action-zone-p2">
+      <button id="btn-shoot-p2" class="action-btn big">TIRO</button>
+      <button id="btn-switch-p2" class="action-btn small">CAMBIAR</button>
+    </div>
+    <div id="joystick-zone-p2">
+      <div id="joystick-base-p2">
+        <div id="joystick-stick-p2"></div>
+      </div>
+    </div>
+  </div>
+  <div id="power-meter-p2"><div id="power-fill-p2"></div></div>
+
   <!-- Overlays -->
-  <div id="overlay-menu" class="overlay">
-    <div class="overlay-card menu-card">
+  <div id="overlay-splash" class="overlay">
+    <div class="overlay-card splash-card">
+      <div class="splash-emblem">⚽</div>
       <h1 id="game-title">FUTBALI</h1>
       <p class="subtitle">Fútbol arcade</p>
+      <button id="btn-start" class="menu-btn primary">COMENZAR</button>
+    </div>
+  </div>
 
-      <div class="picker-row">
-        <div class="picker-label">Modo</div>
-        <div class="segmented" id="mode-toggle">
-          <button class="seg-btn selected" data-mode="normal">NORMAL</button>
-          <button class="seg-btn" data-mode="tournament">TORNEO</button>
+  <div id="overlay-menu" class="overlay hidden">
+    <div class="overlay-card menu-card">
+      <div class="menu-scroll">
+        <div class="coin-bar">🪙 <span id="coin-balance">0</span></div>
+
+        <div class="picker-row">
+          <div class="picker-label">Jugadores</div>
+          <div class="segmented" id="players-toggle">
+            <button class="seg-btn selected" data-players="1">1 (vs IA)</button>
+            <button class="seg-btn" data-players="2">2 (mismo cel)</button>
+          </div>
+        </div>
+
+        <div class="picker-row" id="row-mode">
+          <div class="picker-label">Modo</div>
+          <div class="segmented" id="mode-toggle">
+            <button class="seg-btn selected" data-mode="normal">NORMAL</button>
+            <button class="seg-btn" data-mode="tournament">TORNEO</button>
+          </div>
+        </div>
+
+        <div class="picker-row" id="row-difficulty">
+          <div class="picker-label">Dificultad</div>
+          <div class="segmented" id="difficulty-toggle">
+            <button class="seg-btn" data-diff="easy">FÁCIL</button>
+            <button class="seg-btn selected" data-diff="normal">NORMAL</button>
+            <button class="seg-btn" data-diff="hard">DIFÍCIL</button>
+          </div>
+        </div>
+
+        <div class="picker-row">
+          <div class="picker-label">Tu equipo <span id="pick-a-name">Brasil</span></div>
+          <div class="country-grid" id="grid-team-a"></div>
+        </div>
+        <div class="picker-row" id="row-team-b">
+          <div class="picker-label"><span id="row-team-b-label">Rival</span> <span id="pick-b-name">Argentina</span></div>
+          <div class="country-grid" id="grid-team-b"></div>
+        </div>
+        <div class="picker-row hidden" id="row-tournament-note">
+          <div class="tournament-note">🏆 Rivales sorteados al azar: 2 rondas para ser campeón</div>
+        </div>
+        <div class="picker-row hidden" id="row-2p-note">
+          <div class="tournament-note">🎮 Jugador 1 controla desde abajo, Jugador 2 desde arriba (mismo celular)</div>
+        </div>
+
+        <div class="picker-row">
+          <div class="picker-label">Balón</div>
+          <div class="skin-row" id="ball-skin-row"></div>
+        </div>
+        <div class="picker-row">
+          <div class="picker-label">Camiseta</div>
+          <div class="segmented" id="kit-toggle">
+            <button class="seg-btn selected" data-kit="sash">FRANJA</button>
+            <button class="seg-btn" data-kit="stripes">RAYAS</button>
+            <button class="seg-btn" data-kit="solid">LISO</button>
+          </div>
+        </div>
+
+        <div class="picker-row">
+          <div class="picker-label">Misiones de hoy</div>
+          <div id="mission-list"></div>
         </div>
       </div>
 
-      <div class="picker-row">
-        <div class="picker-label">Dificultad</div>
-        <div class="segmented" id="difficulty-toggle">
-          <button class="seg-btn" data-diff="easy">FÁCIL</button>
-          <button class="seg-btn selected" data-diff="normal">NORMAL</button>
-          <button class="seg-btn" data-diff="hard">DIFÍCIL</button>
-        </div>
+      <div class="menu-footer">
+        <button id="btn-play" class="menu-btn primary">JUGAR</button>
+        <div class="hint">Joystick para moverte · botón TIRO (mantené para más potencia) · CAMBIAR para elegir jugador</div>
       </div>
-
-      <div class="picker-row">
-        <div class="picker-label">Tu equipo <span id="pick-a-name">Brasil</span></div>
-        <div class="country-grid" id="grid-team-a"></div>
-      </div>
-      <div class="picker-row" id="row-team-b">
-        <div class="picker-label">Rival <span id="pick-b-name">Argentina</span></div>
-        <div class="country-grid" id="grid-team-b"></div>
-      </div>
-      <div class="picker-row hidden" id="row-tournament-note">
-        <div class="tournament-note">🏆 Rivales sorteados al azar: 2 rondas para ser campeón</div>
-      </div>
-
-      <div class="picker-row">
-        <div class="picker-label">Balón</div>
-        <div class="skin-row" id="ball-skin-row"></div>
-      </div>
-      <div class="picker-row">
-        <div class="picker-label">Camiseta</div>
-        <div class="segmented" id="kit-toggle">
-          <button class="seg-btn selected" data-kit="sash">FRANJA</button>
-          <button class="seg-btn" data-kit="stripes">RAYAS</button>
-          <button class="seg-btn" data-kit="solid">LISO</button>
-        </div>
-      </div>
-
-      <button id="btn-play" class="menu-btn primary">JUGAR</button>
-      <div class="hint">Joystick para moverte · botón TIRO (mantené para más potencia) · CAMBIAR para elegir jugador</div>
     </div>
   </div>
 
@@ -129,6 +171,7 @@
 <script src="js/field.js"></script>
 <script src="js/countries.js"></script>
 <script src="js/skins.js"></script>
+<script src="js/progress.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/input.js"></script>

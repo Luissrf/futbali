@@ -10,6 +10,7 @@ const state = {
   players: [],
   ball: null,
   controlledPlayer: null,
+  controlledPlayerB: null, // set only in 2-player mode
   possessor: null,
   teamA: null,
   teamB: null,
@@ -21,7 +22,12 @@ const state = {
   timeLeft: HALF_SECONDS,
   phase: 'menu', // menu | playing | paused | goal | fulltime
   switchTimer: 0.25,
+  switchTimerB: 0.25,
   tournament: null, // null | { stage, opponents: [country, country] }
+  twoPlayer: false,
+  matchTackles: 0,
+  matchHumanGoals: 0,
+  matchSecondHalfGoal: false,
 };
 
 function resizeCanvas() {
@@ -37,7 +43,7 @@ function resizeCanvas() {
 function buildTeam(team, country) {
   TEAM_COLOR[team] = { main: country.main, dark: country.dark, trim: country.trim };
   const numbers = [1, 4, 5, 8, 9];
-  const speedMul = team === 'B' ? RUNTIME.difficulty.speedMul : 1;
+  const speedMul = team === 'B' && !state.twoPlayer ? RUNTIME.difficulty.speedMul : 1;
   return FORMATION.map((f, i) => {
     const pos = homePosition(team, f.lx, f.ly);
     const p = new Player({ team, role: f.role, number: numbers[i], x: pos.x, y: pos.y, isGK: f.role === 'GK' });
@@ -59,7 +65,9 @@ function setupKickoff(kickingTeam) {
   state.possessor = state.players.find((p) => p.team === kickingTeam && p.role === 'MID');
 }
 
-function loadMatch(countryA, countryB) {
+// trackProgress=false is used only for the cosmetic idle match built behind the splash/menu at
+// startup, so it doesn't falsely count toward the "distinct countries played today" mission.
+function loadMatch(countryA, countryB, { trackProgress = true } = {}) {
   state.teamA = countryA;
   state.teamB = countryB;
   state.players = [...buildTeam('A', countryA), ...buildTeam('B', countryB)];
@@ -67,10 +75,22 @@ function loadMatch(countryA, countryB) {
   state.scoreA = 0; state.scoreB = 0;
   state.streakA = 0; state.streakB = 0;
   state.half = 1; state.timeLeft = HALF_SECONDS;
+  state.matchTackles = 0;
+  state.matchHumanGoals = 0;
+  state.matchSecondHalfGoal = false;
   setupKickoff('A');
   state.controlledPlayer = state.players.find((p) => p.team === 'A' && p.role === 'MID');
   setControlled(state.controlledPlayer);
+  if (state.twoPlayer) {
+    setControlledB(state.players.find((p) => p.team === 'B' && p.role === 'MID'));
+  } else {
+    state.controlledPlayerB = null;
+  }
   state.phase = 'playing';
+  if (trackProgress) {
+    PROGRESS.recordCountryPlayed(countryA.code);
+    if (state.twoPlayer) PROGRESS.recordCountryPlayed(countryB.code);
+  }
   UI.updateHud(state);
 }
 
@@ -103,6 +123,12 @@ function setControlled(p) {
   p.isControlled = true;
 }
 
+function setControlledB(p) {
+  if (state.controlledPlayerB) state.controlledPlayerB.isControlled = false;
+  state.controlledPlayerB = p;
+  p.isControlled = true;
+}
+
 function resetForGoalKick(defendingTeam) {
   const b = state.ball;
   b.x = FIELD.CX;
@@ -114,6 +140,11 @@ function resetForGoalKick(defendingTeam) {
 
 function triggerGoal(scoringTeam) {
   state.phase = 'goal';
+  const isHumanGoal = scoringTeam === 'A' || (scoringTeam === 'B' && state.twoPlayer);
+  if (isHumanGoal) {
+    state.matchHumanGoals++;
+    if (state.half === 2) state.matchSecondHalfGoal = true;
+  }
   if (scoringTeam === 'A') {
     state.scoreA++;
     state.streakA++; state.streakB = 0;
@@ -138,6 +169,32 @@ function triggerGoal(scoringTeam) {
   }, 1600);
 }
 
+// Tallies the just-finished match into coins/missions/achievements and refreshes the menu's
+// progress display. Runs for every match (normal, each tournament round, 1P and 2P alike).
+function settleMatchProgress() {
+  const wonMatch = state.twoPlayer ? state.scoreA !== state.scoreB : state.scoreA > state.scoreB;
+  const drawMatch = state.scoreA === state.scoreB;
+  const hardWin = wonMatch && !state.twoPlayer && RUNTIME.difficulty === DIFFICULTIES.hard;
+  const tournamentRoundWin = !!state.tournament && wonMatch;
+
+  const summary = PROGRESS.finishMatch({
+    goals: state.matchHumanGoals,
+    tackles: state.matchTackles,
+    win: wonMatch ? 1 : 0,
+    draw: drawMatch ? 1 : 0,
+    hardWin: hardWin ? 1 : 0,
+    tournamentRoundWin: tournamentRoundWin ? 1 : 0,
+    secondHalfGoal: state.matchSecondHalfGoal ? 1 : 0,
+    twoPlayer: state.twoPlayer,
+  });
+
+  const parts = [`+${summary.coinsEarned} 🪙`];
+  summary.missions.forEach((m) => parts.push(`🎯 ${m.text} (+${m.reward} 🪙)`));
+  summary.achievements.forEach((a) => parts.push(`🏅 ${a.text} (+${a.reward} 🪙)`));
+  EASTER_EGGS.toast(parts.join(' · '), 4000);
+  UI.refreshProgress();
+}
+
 function handleHalfEnd() {
   if (state.half === 1) {
     state.half = 2;
@@ -149,6 +206,7 @@ function handleHalfEnd() {
     state.phase = 'fulltime';
     SFX.whistleLong();
     const scoreLine = `${state.teamA.name} ${state.scoreA} - ${state.scoreB} ${state.teamB.name}`;
+    settleMatchProgress();
 
     if (state.tournament) {
       const won = state.scoreA > state.scoreB;
@@ -173,6 +231,10 @@ function handleHalfEnd() {
       } else if (won) {
         COMMENTARY.say(`¡Sos el campeón del torneo, ${COMMENTARY.STAR_NAME}! Un crack total.`);
         EASTER_EGGS.confetti(150);
+        const champ = PROGRESS.recordTournamentChampion();
+        const achLine = champ.achievement ? ` · 🏅 ${champ.achievement.text} (+${champ.achievement.reward} 🪙)` : '';
+        EASTER_EGGS.toast(`🏆 +${champ.coinsEarned} 🪙 de campeón${achLine}`, 4000);
+        UI.refreshProgress();
         UI.showMatchEnd({
           title: '🏆 ¡CAMPEÓN DEL TORNEO! 🏆',
           scoreLine,
@@ -234,12 +296,14 @@ function updatePossession(dt) {
     // defender closing in from behind can never reach a ball that's glued just ahead of the dribbler
     const contestRadius = p.radius + carrier.radius + 7;
     if (dist(p, carrier) < contestRadius) {
-      const diffMul = diffFor(p.team).tackleMul;
-      const bonus = p === state.controlledPlayer ? 1.6 : 1;
+      const diffMul = diffFor(p.team, state).tackleMul;
+      const isHuman = p === state.controlledPlayer || p === state.controlledPlayerB;
+      const bonus = isHuman ? 1.6 : 1;
       const chance = TACKLE_CHANCE_PER_60FPS * bonus * diffMul * (dt * 60);
       if (Math.random() < chance) {
         state.possessor = p;
         SFX.bounce();
+        if (isHuman) state.matchTackles++;
         if (p === state.controlledPlayer) COMMENTARY.tackle();
         break;
       }
@@ -262,27 +326,28 @@ function resolveAllCollisions() {
   }
 }
 
-function handleShootInput() {
-  if (INPUT.shootDown) {
-    const frac = Math.min(1, (performance.now() - INPUT.shootStartTime) / 1000 / INPUT.CHARGE_MAX);
-    UI.setPower(frac);
+// side: 'A' or 'B'. rig: INPUT or INPUT2. Handles power-meter display + the actual kick.
+function handleShootFor(side, rig, powerSide) {
+  if (rig.shootDown) {
+    const frac = Math.min(1, (performance.now() - rig.shootStartTime) / 1000 / rig.CHARGE_MAX);
+    UI.setPower(powerSide, frac);
   } else {
-    UI.hidePower();
+    UI.hidePower(powerSide);
   }
 
-  if (!INPUT.shootReleased) return;
-  INPUT.shootReleased = false;
-  const cp = state.controlledPlayer;
+  if (!rig.shootReleased) return;
+  rig.shootReleased = false;
+  const cp = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
   if (!cp) return;
 
   if (state.possessor === cp) {
-    const useJoystick = Math.abs(INPUT.move.x) + Math.abs(INPUT.move.y) > 0.12;
-    const aim = useJoystick ? { x: INPUT.move.x, y: INPUT.move.y } : { x: Math.cos(cp.angle), y: Math.sin(cp.angle) };
+    const useJoystick = Math.abs(rig.move.x) + Math.abs(rig.move.y) > 0.12;
+    const aim = useJoystick ? { x: rig.move.x, y: rig.move.y } : { x: Math.cos(cp.angle), y: Math.sin(cp.angle) };
     const len = Math.hypot(aim.x, aim.y) || 1;
-    const power = INPUT.releasedPower;
+    const power = rig.releasedPower;
     const speed = 200 + power * 310;
     state.ball.kick((aim.x / len) * speed, (aim.y / len) * speed);
-    state.ball.lastTouchTeam = 'A';
+    state.ball.lastTouchTeam = side;
     state.ball.lastTouchPlayer = cp;
     state.possessor = null;
     cp.kickCooldown = 0.16;
@@ -293,23 +358,29 @@ function handleShootInput() {
   }
 }
 
-function handleSwitchInput(dt) {
-  if (INPUT.switchPressed) {
-    INPUT.switchPressed = false;
-    const mates = state.players.filter((p) => p.team === 'A' && !p.isGK && p !== state.controlledPlayer);
+function handleSwitchFor(side, rig, dt) {
+  const team = side === 'A' ? 'A' : 'B';
+  const current = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
+  const setter = side === 'A' ? setControlled : setControlledB;
+  const timerKey = side === 'A' ? 'switchTimer' : 'switchTimerB';
+
+  if (rig.switchPressed) {
+    rig.switchPressed = false;
+    const mates = state.players.filter((p) => p.team === team && !p.isGK && p !== current);
     mates.sort((a, b) => dist(a, state.ball) - dist(b, state.ball));
-    if (mates[0]) setControlled(mates[0]);
+    if (mates[0]) setter(mates[0]);
   }
 
-  state.switchTimer -= dt;
-  if (state.switchTimer <= 0) {
-    state.switchTimer = 0.25;
-    if (state.controlledPlayer && state.possessor !== state.controlledPlayer) {
-      const mates = state.players.filter((p) => p.team === 'A' && !p.isGK);
+  state[timerKey] -= dt;
+  if (state[timerKey] <= 0) {
+    state[timerKey] = 0.25;
+    const active = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
+    if (active && state.possessor !== active) {
+      const mates = state.players.filter((p) => p.team === team && !p.isGK);
       mates.sort((a, b) => dist(a, state.ball) - dist(b, state.ball));
       const best = mates[0];
-      if (best && best !== state.controlledPlayer && dist(best, state.ball) < dist(state.controlledPlayer, state.ball) - 14) {
-        setControlled(best);
+      if (best && best !== active && dist(best, state.ball) < dist(active, state.ball) - 14) {
+        setter(best);
       }
     }
   }
@@ -337,6 +408,10 @@ function update(dt) {
   EASTER_EGGS.updateGiantHeads();
 
   if (state.controlledPlayer) state.controlledPlayer.steer(INPUT.move.x, INPUT.move.y, dt, 1);
+  // Player 2 is seated at the opposite edge of the screen facing Player 1, so their sense of
+  // "left/right" is mirrored relative to the screen's absolute frame — negate X only.
+  // "Forward" (away from their body) already matches team B's attack direction, so Y stays as-is.
+  if (state.twoPlayer && state.controlledPlayerB) state.controlledPlayerB.steer(-INPUT2.move.x, INPUT2.move.y, dt, 1);
   updateAI(dt, state);
   updatePossession(dt);
 
@@ -345,8 +420,12 @@ function update(dt) {
   else state.ball.update(dt);
 
   resolveAllCollisions();
-  handleShootInput();
-  handleSwitchInput(dt);
+  handleShootFor('A', INPUT, 'a');
+  handleSwitchFor('A', INPUT, dt);
+  if (state.twoPlayer) {
+    handleShootFor('B', INPUT2, 'b');
+    handleSwitchFor('B', INPUT2, dt);
+  }
   checkGoalsAndBounds();
   UI.updateHud(state);
 }
@@ -383,8 +462,13 @@ function wireButtons() {
     COMMENTARY.unlock();
     const sel = UI.getSelection();
     applyRuntimeFromSelection(sel);
+    state.twoPlayer = sel.twoPlayer;
+    document.getElementById('controls-p2').classList.toggle('hidden', !sel.twoPlayer);
     UI.hideOverlay('overlay-menu');
-    if (sel.mode === 'tournament') {
+    if (sel.twoPlayer) {
+      state.tournament = null;
+      loadMatch(sel.a, sel.b);
+    } else if (sel.mode === 'tournament') {
       startTournament(sel.a);
     } else {
       state.tournament = null;
@@ -425,7 +509,7 @@ function init() {
   window.addEventListener('resize', resizeCanvas);
   UI.initMenu();
   const sel = UI.getSelection();
-  loadMatch(sel.a, sel.b);
+  loadMatch(sel.a, sel.b, { trackProgress: false });
   state.phase = 'menu';
   wireButtons();
   requestAnimationFrame(loop);

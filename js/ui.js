@@ -1,9 +1,9 @@
-// DOM/HUD layer: country picker, mode/difficulty/skins pickers, scoreboard, overlays, power meter.
+// DOM/HUD layer: splash, country picker, mode/difficulty/players/skins/missions, scoreboard, overlays, power meters.
 
 const UI = (() => {
   const el = (id) => document.getElementById(id);
 
-  const selection = { a: 'BRA', b: 'ARG', mode: 'normal', difficulty: 'normal', kit: 'sash', ballSkin: 'classic' };
+  const selection = { a: 'BRA', b: 'ARG', mode: 'normal', difficulty: 'normal', kit: 'sash', ballSkin: 'classic', players: 1 };
 
   function renderGrid(teamKey) {
     const grid = el(teamKey === 'a' ? 'grid-team-a' : 'grid-team-b');
@@ -41,16 +41,86 @@ const UI = (() => {
     const row = el('ball-skin-row');
     row.innerHTML = '';
     BALL_SKINS.forEach((skin) => {
+      const unlocked = PROGRESS.isUnlocked('ballSkin', skin.id);
+      const price = PROGRESS.priceOf('ballSkin', skin.id);
       const dot = document.createElement('div');
-      dot.className = 'skin-swatch' + (selection.ballSkin === skin.id ? ' selected' : '');
+      dot.className = 'skin-swatch' + (selection.ballSkin === skin.id ? ' selected' : '') + (unlocked ? '' : ' locked');
       dot.style.background = `radial-gradient(circle at 35% 30%, ${skin.base}, ${skin.shade})`;
-      dot.title = skin.name;
+      dot.title = unlocked ? skin.name : `${skin.name} · 🪙${price}`;
+      dot.textContent = unlocked ? '' : '🔒';
       dot.addEventListener('pointerdown', () => {
-        selection.ballSkin = skin.id;
-        SFX.click();
-        renderBallSkins();
+        if (unlocked) {
+          selection.ballSkin = skin.id;
+          SFX.click();
+          renderBallSkins();
+          return;
+        }
+        const res = PROGRESS.tryPurchase('ballSkin', skin.id);
+        if (res.ok) {
+          selection.ballSkin = skin.id;
+          SFX.goal();
+          EASTER_EGGS.toast(`⚽ ¡Desbloqueaste el balón ${skin.name}!`);
+          renderBallSkins();
+          renderCoinBalance();
+          (res.unlocks || []).forEach((a) => EASTER_EGGS.toast(`🏅 ${a.text} (+${a.reward} 🪙)`));
+        } else {
+          SFX.postHit();
+          EASTER_EGGS.toast(`🪙 Te faltan ${res.needed} monedas`);
+        }
       });
       row.appendChild(dot);
+    });
+  }
+
+  function renderKitButtons() {
+    const container = el('kit-toggle');
+    container.querySelectorAll('.seg-btn').forEach((btn) => {
+      const id = btn.dataset.kit;
+      const style = findKitStyle(id);
+      const unlocked = PROGRESS.isUnlocked('kit', id);
+      const price = PROGRESS.priceOf('kit', id);
+      btn.textContent = unlocked ? style.name.toUpperCase() : `${style.name.toUpperCase()} 🔒${price}`;
+      btn.classList.toggle('selected', selection.kit === id);
+      btn.onpointerdown = () => {
+        if (unlocked) {
+          selection.kit = id;
+          SFX.click();
+          renderKitButtons();
+          return;
+        }
+        const res = PROGRESS.tryPurchase('kit', id);
+        if (res.ok) {
+          selection.kit = id;
+          SFX.goal();
+          EASTER_EGGS.toast(`👕 ¡Desbloqueaste la camiseta ${style.name}!`);
+          renderKitButtons();
+          renderCoinBalance();
+          (res.unlocks || []).forEach((a) => EASTER_EGGS.toast(`🏅 ${a.text} (+${a.reward} 🪙)`));
+        } else {
+          SFX.postHit();
+          EASTER_EGGS.toast(`🪙 Te faltan ${res.needed} monedas`);
+        }
+      };
+    });
+  }
+
+  function renderCoinBalance() { el('coin-balance').textContent = PROGRESS.coins; }
+
+  function renderMissions() {
+    const list = el('mission-list');
+    list.innerHTML = '';
+    PROGRESS.dailyMissions.forEach((m) => {
+      const row = document.createElement('div');
+      row.className = 'mission-row' + (m.done ? ' done' : '');
+      const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
+      row.innerHTML = `
+        <div class="mission-top">
+          <span>${m.done ? '✅ ' : ''}${m.text}</span>
+          <span class="mission-reward">🪙${m.reward}</span>
+        </div>
+        <div class="mission-bar"><div class="mission-bar-fill" style="width:${pct}%"></div></div>
+      `;
+      list.appendChild(row);
     });
   }
 
@@ -60,18 +130,40 @@ const UI = (() => {
     el('row-tournament-note').classList.toggle('hidden', !isTournament);
   }
 
+  function updatePlayersVisibility() {
+    const isTwoPlayer = String(selection.players) === '2';
+    el('row-mode').classList.toggle('hidden', isTwoPlayer);
+    el('row-difficulty').classList.toggle('hidden', isTwoPlayer);
+    el('row-2p-note').classList.toggle('hidden', !isTwoPlayer);
+    el('row-team-b-label').textContent = isTwoPlayer ? 'Jugador 2' : 'Rival';
+    // 2P always needs the team-B picker (P2 must pick a country); leaving 2P re-applies the
+    // tournament-mode visibility rule, which may hide it again.
+    el('row-team-b').classList.remove('hidden');
+    if (!isTwoPlayer) updateModeVisibility();
+  }
+
   function initMenu() {
     renderGrid('a');
     renderGrid('b');
     renderBallSkins();
+    renderKitButtons();
+    renderCoinBalance();
+    renderMissions();
     el('pick-a-name').textContent = findCountry(selection.a).name;
     el('pick-b-name').textContent = findCountry(selection.b).name;
     el('game-title').addEventListener('pointerdown', () => EASTER_EGGS.onTitleTap());
+    el('btn-start').addEventListener('pointerdown', () => {
+      SFX.click();
+      COMMENTARY.unlock();
+      hideOverlay('overlay-splash');
+      showOverlay('overlay-menu');
+    });
 
+    wireSegmented('players-toggle', 'players', 'players', updatePlayersVisibility);
     wireSegmented('mode-toggle', 'mode', 'mode', updateModeVisibility);
     wireSegmented('difficulty-toggle', 'diff', 'difficulty');
-    wireSegmented('kit-toggle', 'kit', 'kit');
     updateModeVisibility();
+    updatePlayersVisibility();
   }
 
   function refreshGridsIfGhostUnlocked() {
@@ -88,7 +180,16 @@ const UI = (() => {
       difficulty: findDifficulty(selection.difficulty),
       kit: findKitStyle(selection.kit),
       ballSkin: findBallSkin(selection.ballSkin),
+      twoPlayer: String(selection.players) === '2',
     };
+  }
+
+  // called after a match ends, so the menu reflects newly earned coins/missions next time it's shown
+  function refreshProgress() {
+    renderCoinBalance();
+    renderMissions();
+    renderBallSkins();
+    renderKitButtons();
   }
 
   function showOverlay(id) { el(id).classList.remove('hidden'); }
@@ -126,15 +227,15 @@ const UI = (() => {
     showOverlay('overlay-fulltime');
   }
 
-  let powerVisible = false;
-  function setPower(fraction) {
-    el('power-fill').style.height = Math.round(fraction * 100) + '%';
-    if (!powerVisible) { el('power-meter').classList.add('visible'); powerVisible = true; }
+  const powerState = { a: false, b: false };
+  function setPower(side, fraction) {
+    el(side === 'b' ? 'power-fill-p2' : 'power-fill').style.height = Math.round(fraction * 100) + '%';
+    if (!powerState[side]) { el(side === 'b' ? 'power-meter-p2' : 'power-meter').classList.add('visible'); powerState[side] = true; }
   }
-  function hidePower() {
-    el('power-meter').classList.remove('visible');
-    powerVisible = false;
+  function hidePower(side) {
+    el(side === 'b' ? 'power-meter-p2' : 'power-meter').classList.remove('visible');
+    powerState[side] = false;
   }
 
-  return { initMenu, getSelection, showOverlay, hideOverlay, updateHud, flashGoal, showMatchEnd, setPower, hidePower };
+  return { initMenu, getSelection, refreshProgress, showOverlay, hideOverlay, updateHud, flashGoal, showMatchEnd, setPower, hidePower };
 })();
