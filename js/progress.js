@@ -30,6 +30,21 @@ const SHOP_PRICES = {
   kit: { sash: 0, stripes: 90, solid: 70 },
 };
 
+// Secret redeemable codes — entered by the player in the "Códigos secretos" screen. Matching is
+// accent/case/punctuation-insensitive (see normalizeCode), so "Me Gustas ❤️" and "megustas" both hit 'love'.
+const SECRET_CODES = [
+  { id: 'love', keys: ['MEGUSTAS', 'TEQUIERO', 'TEAMO'], coins: 100, unlock: { kind: 'ballSkin', id: 'heart' }, message: '😍 ¡Qué tierno! +100 🪙 y el balón secreto Corazón' },
+  { id: 'star', keys: ['MONREAL'], coins: 50, message: '⭐ ¡Monreal te manda un saludo! +50 🪙' },
+  { id: 'welcome', keys: ['FUTBALI'], coins: 40, message: '⚽ +40 🪙 de bienvenida a FUTBALI' },
+  { id: 'champion', keys: ['CAMPEON', 'CAMPEÓN'], coins: 60, message: '🏆 +60 🪙 de campeón honorario' },
+  { id: 'ghost', keys: ['FANTASMA', 'FANTASMAS'], coins: 20, unlock: { kind: 'ghostTeam' }, message: '👻 +20 🪙 y el equipo secreto Fantasmas FC' },
+  { id: 'golazo', keys: ['GOLAZO'], coins: 30, message: '⚽ ¡GOLAZO! +30 🪙' },
+];
+
+function normalizeCode(s) {
+  return (s || '').toUpperCase().replace(/[^A-Z0-9ÁÉÍÓÚÑ]/g, '');
+}
+
 const PROGRESS = (() => {
   const STORAGE_KEY = 'futali_progress_v1';
 
@@ -41,6 +56,8 @@ const PROGRESS = (() => {
       achievements: {},
       stats: { matches: 0, wins: 0, goals: 0, tournamentChamps: 0 },
       daily: { date: null, missions: [], countriesUsed: [] },
+      teamName: '',
+      redeemedCodes: [],
     };
   }
 
@@ -217,6 +234,29 @@ const PROGRESS = (() => {
       const achievement = unlockAchievement('first_tournament');
       save();
       return { coinsEarned, achievement };
+    },
+
+    get teamName() { return data.teamName || ''; },
+    setTeamName(name) {
+      data.teamName = (name || '').trim().slice(0, 16);
+      save();
+    },
+
+    // input: raw text the player typed. Returns { ok, reason: 'used'|'invalid', message, coins, unlock }
+    redeemCode(input) {
+      const norm = normalizeCode(input);
+      if (!norm) return { ok: false, reason: 'invalid' };
+      const found = SECRET_CODES.find((c) => c.keys.includes(norm));
+      if (!found) return { ok: false, reason: 'invalid' };
+      if (data.redeemedCodes.includes(found.id)) return { ok: false, reason: 'used', message: found.message };
+
+      data.redeemedCodes.push(found.id);
+      data.coins += found.coins;
+      if (found.unlock && found.unlock.kind === 'ballSkin' && !data.unlockedBallSkins.includes(found.unlock.id)) {
+        data.unlockedBallSkins.push(found.unlock.id);
+      }
+      save();
+      return { ok: true, message: found.message, coins: found.coins, unlock: found.unlock };
     },
   };
 })();

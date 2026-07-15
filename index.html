@@ -76,7 +76,15 @@
       <div class="menu-scroll">
         <div class="coin-bar-row">
           <div class="coin-bar">🪙 <span id="coin-balance">0</span></div>
-          <button id="btn-shop" class="shop-btn">🛒 Tienda</button>
+          <div class="coin-bar-actions">
+            <button id="btn-shop" class="shop-btn">🛒 Tienda</button>
+            <button id="btn-codes" class="shop-btn">🔑 Códigos</button>
+          </div>
+        </div>
+
+        <div class="picker-row">
+          <div class="picker-label">Nombre de tu equipo (opcional)</div>
+          <input type="text" id="team-name-input" class="team-name-input" placeholder="Ej: Los Cracks" maxlength="16">
         </div>
 
         <div class="picker-row">
@@ -162,6 +170,17 @@
       <div class="menu-footer">
         <button id="btn-shop-close" class="menu-btn primary">VOLVER</button>
       </div>
+    </div>
+  </div>
+
+  <div id="overlay-codes" class="overlay hidden">
+    <div class="overlay-card">
+      <h2>🔑 Códigos secretos</h2>
+      <p class="subtitle">Hay códigos escondidos por ahí. Si encontrás uno, escribilo acá.</p>
+      <input type="text" id="code-input" class="team-name-input" placeholder="Escribí un código...">
+      <div id="code-feedback" class="code-feedback"></div>
+      <button id="btn-code-redeem" class="menu-btn primary">CANJEAR</button>
+      <button id="btn-codes-close" class="menu-btn">VOLVER</button>
     </div>
   </div>
 

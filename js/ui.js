@@ -46,10 +46,14 @@ const UI = (() => {
     });
   }
 
+  function ballSkinList() {
+    return BALL_SKINS.concat(PROGRESS.isUnlocked('ballSkin', 'heart') ? [HEART_SKIN] : []);
+  }
+
   function renderBallSkins() {
     const row = el('ball-skin-row');
     row.innerHTML = '';
-    BALL_SKINS.forEach((skin) => {
+    ballSkinList().forEach((skin) => {
       const unlocked = PROGRESS.isUnlocked('ballSkin', skin.id);
       const price = PROGRESS.priceOf('ballSkin', skin.id);
       const dot = document.createElement('div');
@@ -130,7 +134,7 @@ const UI = (() => {
 
     const ballsEl = el('shop-balls');
     ballsEl.innerHTML = '';
-    BALL_SKINS.forEach((skin) => {
+    ballSkinList().forEach((skin) => {
       const unlocked = PROGRESS.isUnlocked('ballSkin', skin.id);
       const price = PROGRESS.priceOf('ballSkin', skin.id);
       const card = document.createElement('div');
@@ -187,6 +191,49 @@ const UI = (() => {
     });
   }
 
+  function wireTeamName() {
+    const input = el('team-name-input');
+    input.value = PROGRESS.teamName;
+    input.addEventListener('input', () => PROGRESS.setTeamName(input.value));
+  }
+
+  function wireCodes() {
+    const input = el('code-input');
+    const feedback = el('code-feedback');
+    el('btn-codes').addEventListener('click', () => {
+      SFX.click();
+      input.value = '';
+      feedback.textContent = '';
+      showOverlay('overlay-codes');
+    });
+    el('btn-codes-close').addEventListener('click', () => { SFX.click(); hideOverlay('overlay-codes'); });
+
+    function redeem() {
+      const res = PROGRESS.redeemCode(input.value);
+      if (res.ok) {
+        SFX.goal();
+        feedback.style.color = '#ffd23f';
+        feedback.textContent = res.message;
+        EASTER_EGGS.confetti(70);
+        renderCoinBalance();
+        renderBallSkins();
+        renderShop();
+        if (res.unlock && res.unlock.kind === 'ghostTeam') EASTER_EGGS.unlockGhostTeam();
+        input.value = '';
+      } else if (res.reason === 'used') {
+        SFX.postHit();
+        feedback.style.color = '#ff9a56';
+        feedback.textContent = 'Ya usaste ese código antes';
+      } else {
+        SFX.postHit();
+        feedback.style.color = '#ff5e3a';
+        feedback.textContent = '❌ Código inválido, ¡seguí probando!';
+      }
+    }
+    el('btn-code-redeem').addEventListener('click', redeem);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') redeem(); });
+  }
+
   function updateModeVisibility() {
     const isTournament = selection.mode === 'tournament';
     el('row-team-b').classList.toggle('hidden', isTournament);
@@ -224,6 +271,8 @@ const UI = (() => {
     });
     el('btn-shop').addEventListener('click', () => { SFX.click(); renderShop(); showOverlay('overlay-shop'); });
     el('btn-shop-close').addEventListener('click', () => { SFX.click(); hideOverlay('overlay-shop'); });
+    wireTeamName();
+    wireCodes();
 
     wireSegmented('players-toggle', 'players', 'players', updatePlayersVisibility);
     wireSegmented('mode-toggle', 'mode', 'mode', updateModeVisibility);

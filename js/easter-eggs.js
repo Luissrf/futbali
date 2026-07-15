@@ -77,18 +77,22 @@ const EASTER_EGGS = (() => {
     });
   });
 
-  const flagTracker = makeTapTracker(4, 1400, () => {
-    if (unlocked.ghost_team) { toast('👻 Ya desbloqueaste a los Fantasmas FC'); return; }
+  function unlockGhostTeam() {
+    if (unlocked.ghost_team) { toast('👻 Ya desbloqueaste a los Fantasmas FC'); return false; }
     state.ghostTeamFound = true;
     unlockOnce('ghost_team', '👻 ¡Equipo secreto desbloqueado: Fantasmas FC!', { speak: 'Encontraste un equipo fantasma secreto' });
     if (typeof onGhostTeamUnlocked === 'function') onGhostTeamUnlocked();
-  });
+    return true;
+  }
+
+  const flagTracker = makeTapTracker(4, 1400, unlockGhostTeam);
 
   return {
     state,
     toast,
     confetti,
     isUnlocked: (id) => !!unlocked[id],
+    unlockGhostTeam,
 
     onTitleTap() { titleTracker(); },
     onFlagTap(code) { if (code === 'BRA') flagTracker(); },

@@ -584,6 +584,29 @@ html, body {
   background: linear-gradient(90deg, #ffd23f, #ff5e3a);
 }
 
+.coin-bar-actions { display: flex; gap: 6px; }
+
+.team-name-input {
+  width: 100%;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+}
+.team-name-input::placeholder { color: rgba(255,255,255,0.4); }
+.team-name-input:focus { outline: none; border-color: #ffd23f; }
+
+.code-feedback {
+  min-height: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 10px 0;
+  color: #ffd23f;
+}
+
 /* ---------- Toast ---------- */
 #egg-toast {
   position: absolute;

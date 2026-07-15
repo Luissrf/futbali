@@ -68,9 +68,13 @@ function setupKickoff(kickingTeam) {
 // trackProgress=false is used only for the cosmetic idle match built behind the splash/menu at
 // startup, so it doesn't falsely count toward the "distinct countries played today" mission.
 function loadMatch(countryA, countryB, { trackProgress = true } = {}) {
-  state.teamA = countryA;
+  // an optional custom team name overlays the display name only — the chosen country still
+  // supplies the flag/colors, so buildTeam still gets the real country object (with .name kept
+  // on it via the spread) for jersey colors, while state.teamA shows the player's own name.
+  const displayA = PROGRESS.teamName ? { ...countryA, name: PROGRESS.teamName } : countryA;
+  state.teamA = displayA;
   state.teamB = countryB;
-  state.players = [...buildTeam('A', countryA), ...buildTeam('B', countryB)];
+  state.players = [...buildTeam('A', displayA), ...buildTeam('B', countryB)];
   state.ball = new Ball(FIELD.CX, FIELD.CY);
   state.scoreA = 0; state.scoreB = 0;
   state.streakA = 0; state.streakB = 0;
