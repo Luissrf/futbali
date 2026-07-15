@@ -273,10 +273,11 @@ html, body {
 .menu-btn:active { filter: brightness(0.9); }
 
 .hint {
-  margin-top: 16px;
+  margin: 16px auto 0;
   font-size: 11px;
   opacity: 0.55;
   max-width: 220px;
+  text-align: center;
 }
 
 #fulltime-score {
@@ -332,6 +333,60 @@ html, body {
   background: rgba(255,210,63,0.18);
 }
 .country-cell.ghost { filter: grayscale(0.2); }
+
+/* ---------- Segmented controls (mode, difficulty, kit) ---------- */
+.segmented {
+  display: flex;
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 8px 4px;
+  border-radius: 7px;
+}
+.seg-btn.selected {
+  background: #ffd23f;
+  color: #21360f;
+}
+
+.tournament-note {
+  background: rgba(255,210,63,0.12);
+  border: 1px solid rgba(255,210,63,0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.skin-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 4px 0;
+}
+.skin-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+}
+.skin-swatch.selected {
+  border-color: #ffd23f;
+  transform: scale(1.1);
+}
+
+.hidden { display: none; }
 
 /* ---------- Toast ---------- */
 #egg-toast {

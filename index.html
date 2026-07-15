@@ -54,12 +54,45 @@
       <p class="subtitle">Fútbol arcade</p>
 
       <div class="picker-row">
+        <div class="picker-label">Modo</div>
+        <div class="segmented" id="mode-toggle">
+          <button class="seg-btn selected" data-mode="normal">NORMAL</button>
+          <button class="seg-btn" data-mode="tournament">TORNEO</button>
+        </div>
+      </div>
+
+      <div class="picker-row">
+        <div class="picker-label">Dificultad</div>
+        <div class="segmented" id="difficulty-toggle">
+          <button class="seg-btn" data-diff="easy">FÁCIL</button>
+          <button class="seg-btn selected" data-diff="normal">NORMAL</button>
+          <button class="seg-btn" data-diff="hard">DIFÍCIL</button>
+        </div>
+      </div>
+
+      <div class="picker-row">
         <div class="picker-label">Tu equipo <span id="pick-a-name">Brasil</span></div>
         <div class="country-grid" id="grid-team-a"></div>
       </div>
-      <div class="picker-row">
+      <div class="picker-row" id="row-team-b">
         <div class="picker-label">Rival <span id="pick-b-name">Argentina</span></div>
         <div class="country-grid" id="grid-team-b"></div>
+      </div>
+      <div class="picker-row hidden" id="row-tournament-note">
+        <div class="tournament-note">🏆 Rivales sorteados al azar: 2 rondas para ser campeón</div>
+      </div>
+
+      <div class="picker-row">
+        <div class="picker-label">Balón</div>
+        <div class="skin-row" id="ball-skin-row"></div>
+      </div>
+      <div class="picker-row">
+        <div class="picker-label">Camiseta</div>
+        <div class="segmented" id="kit-toggle">
+          <button class="seg-btn selected" data-kit="sash">FRANJA</button>
+          <button class="seg-btn" data-kit="stripes">RAYAS</button>
+          <button class="seg-btn" data-kit="solid">LISO</button>
+        </div>
       </div>
 
       <button id="btn-play" class="menu-btn primary">JUGAR</button>
@@ -78,6 +111,7 @@
       <h2>PAUSA</h2>
       <button id="btn-resume" class="menu-btn primary">CONTINUAR</button>
       <button id="btn-restart" class="menu-btn">REINICIAR</button>
+      <button id="btn-quit" class="menu-btn">SALIR AL MENÚ</button>
     </div>
   </div>
 
@@ -85,7 +119,8 @@
     <div class="overlay-card">
       <h2 id="fulltime-title">FINAL DEL PARTIDO</h2>
       <div id="fulltime-score">0 - 0</div>
-      <button id="btn-play-again" class="menu-btn primary">JUGAR DE NUEVO</button>
+      <button id="btn-fulltime-primary" class="menu-btn primary">JUGAR DE NUEVO</button>
+      <button id="btn-fulltime-secondary" class="menu-btn">MENÚ</button>
     </div>
   </div>
 </div>
@@ -93,6 +128,7 @@
 <script src="js/audio.js"></script>
 <script src="js/field.js"></script>
 <script src="js/countries.js"></script>
+<script src="js/skins.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/input.js"></script>

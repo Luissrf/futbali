@@ -1,7 +1,7 @@
 // Game loop, match state machine, physics resolution, scoring — wires every other module together.
 
 const HALF_SECONDS = 90;
-const TACKLE_CHANCE_PER_60FPS = 0.02;
+const TACKLE_CHANCE_PER_60FPS = 0.032;
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -20,7 +20,8 @@ const state = {
   half: 1,
   timeLeft: HALF_SECONDS,
   phase: 'menu', // menu | playing | paused | goal | fulltime
-  switchTimer: 0.35,
+  switchTimer: 0.25,
+  tournament: null, // null | { stage, opponents: [country, country] }
 };
 
 function resizeCanvas() {
@@ -36,10 +37,12 @@ function resizeCanvas() {
 function buildTeam(team, country) {
   TEAM_COLOR[team] = { main: country.main, dark: country.dark, trim: country.trim };
   const numbers = [1, 4, 5, 8, 9];
+  const speedMul = team === 'B' ? RUNTIME.difficulty.speedMul : 1;
   return FORMATION.map((f, i) => {
     const pos = homePosition(team, f.lx, f.ly);
     const p = new Player({ team, role: f.role, number: numbers[i], x: pos.x, y: pos.y, isGK: f.role === 'GK' });
     p.formation = { lx: f.lx, ly: f.ly };
+    p.maxSpeed *= speedMul;
     return p;
   });
 }
@@ -69,6 +72,29 @@ function loadMatch(countryA, countryB) {
   setControlled(state.controlledPlayer);
   state.phase = 'playing';
   UI.updateHud(state);
+}
+
+function applyRuntimeFromSelection(sel) {
+  RUNTIME.difficulty = sel.difficulty;
+  RUNTIME.ballSkin = sel.ballSkin;
+  RUNTIME.kitStyle = { A: sel.kit, B: findKitStyle('sash') };
+}
+
+function startTournament(userCountry) {
+  const pool = COUNTRIES.filter((c) => c.code !== userCountry.code);
+  const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+  const opponents = shuffled.slice(0, 2);
+  state.tournament = { stage: 0, opponents };
+  loadMatch(userCountry, opponents[0]);
+  EASTER_EGGS.toast(`🏆 Fase 1 de 2 · vs ${opponents[0].flag} ${opponents[0].name}`);
+}
+
+function quitToMenu() {
+  state.phase = 'menu';
+  state.tournament = null;
+  UI.hideOverlay('overlay-pause');
+  UI.hideOverlay('overlay-fulltime');
+  UI.showOverlay('overlay-menu');
 }
 
 function setControlled(p) {
@@ -122,9 +148,63 @@ function handleHalfEnd() {
   } else {
     state.phase = 'fulltime';
     SFX.whistleLong();
+    const scoreLine = `${state.teamA.name} ${state.scoreA} - ${state.scoreB} ${state.teamB.name}`;
+
+    if (state.tournament) {
+      const won = state.scoreA > state.scoreB;
+      const t = state.tournament;
+      if (won && t.stage < t.opponents.length - 1) {
+        t.stage++;
+        const next = t.opponents[t.stage];
+        COMMENTARY.fulltime('win');
+        EASTER_EGGS.confetti(55);
+        UI.showMatchEnd({
+          title: `¡GANASTE LA FASE ${t.stage}!`,
+          scoreLine,
+          primaryLabel: `SIGUIENTE: ${next.name.toUpperCase()}`,
+          primaryAction: () => {
+            loadMatch(state.teamA, next);
+            EASTER_EGGS.toast(`🏆 Fase ${t.stage + 1} de ${t.opponents.length} · vs ${next.flag} ${next.name}`);
+            COMMENTARY.kickoff();
+          },
+          secondaryLabel: 'MENÚ',
+          secondaryAction: quitToMenu,
+        });
+      } else if (won) {
+        COMMENTARY.say(`¡Sos el campeón del torneo, ${COMMENTARY.STAR_NAME}! Un crack total.`);
+        EASTER_EGGS.confetti(150);
+        UI.showMatchEnd({
+          title: '🏆 ¡CAMPEÓN DEL TORNEO! 🏆',
+          scoreLine,
+          primaryLabel: 'JUGAR DE NUEVO',
+          primaryAction: () => startTournament(state.teamA),
+          secondaryLabel: 'MENÚ',
+          secondaryAction: quitToMenu,
+        });
+      } else {
+        COMMENTARY.fulltime('lose');
+        UI.showMatchEnd({
+          title: 'ELIMINADO DEL TORNEO',
+          scoreLine,
+          primaryLabel: 'REINTENTAR TORNEO',
+          primaryAction: () => startTournament(state.teamA),
+          secondaryLabel: 'MENÚ',
+          secondaryAction: quitToMenu,
+        });
+      }
+      return;
+    }
+
     const result = state.scoreA > state.scoreB ? 'win' : state.scoreA < state.scoreB ? 'lose' : 'draw';
     COMMENTARY.fulltime(result);
-    UI.showFulltime(state.scoreA, state.scoreB, state.teamA.name, state.teamB.name);
+    UI.showMatchEnd({
+      title: 'FINAL DEL PARTIDO',
+      scoreLine,
+      primaryLabel: 'JUGAR DE NUEVO',
+      primaryAction: () => { loadMatch(state.teamA, state.teamB); COMMENTARY.kickoff(); },
+      secondaryLabel: 'MENÚ',
+      secondaryAction: quitToMenu,
+    });
   }
 }
 
@@ -147,12 +227,16 @@ function updatePossession(dt) {
     return;
   }
 
+  const carrier = state.possessor;
   for (const p of state.players) {
-    if (p.team === state.possessor.team || p.kickCooldown > 0) continue;
-    const d = dist(p, ball);
-    if (d < pickupR(p)) {
-      const bonus = p === state.controlledPlayer ? 1.3 : 1;
-      const chance = TACKLE_CHANCE_PER_60FPS * bonus * (dt * 60);
+    if (p.team === carrier.team || p.kickCooldown > 0) continue;
+    // contest based on proximity to the ball CARRIER, not the exact ball pixel — otherwise a
+    // defender closing in from behind can never reach a ball that's glued just ahead of the dribbler
+    const contestRadius = p.radius + carrier.radius + 7;
+    if (dist(p, carrier) < contestRadius) {
+      const diffMul = diffFor(p.team).tackleMul;
+      const bonus = p === state.controlledPlayer ? 1.6 : 1;
+      const chance = TACKLE_CHANCE_PER_60FPS * bonus * diffMul * (dt * 60);
       if (Math.random() < chance) {
         state.possessor = p;
         SFX.bounce();
@@ -192,20 +276,20 @@ function handleShootInput() {
   if (!cp) return;
 
   if (state.possessor === cp) {
-    const useJoystick = Math.abs(INPUT.move.x) + Math.abs(INPUT.move.y) > 0.15;
+    const useJoystick = Math.abs(INPUT.move.x) + Math.abs(INPUT.move.y) > 0.12;
     const aim = useJoystick ? { x: INPUT.move.x, y: INPUT.move.y } : { x: Math.cos(cp.angle), y: Math.sin(cp.angle) };
     const len = Math.hypot(aim.x, aim.y) || 1;
     const power = INPUT.releasedPower;
-    const speed = 190 + power * 300;
+    const speed = 200 + power * 310;
     state.ball.kick((aim.x / len) * speed, (aim.y / len) * speed);
     state.ball.lastTouchTeam = 'A';
     state.ball.lastTouchPlayer = cp;
     state.possessor = null;
-    cp.kickCooldown = 0.25;
+    cp.kickCooldown = 0.16;
     SFX.kick();
   } else {
-    cp.vx += Math.cos(cp.angle) * 140;
-    cp.vy += Math.sin(cp.angle) * 140;
+    cp.vx += Math.cos(cp.angle) * 170;
+    cp.vy += Math.sin(cp.angle) * 170;
   }
 }
 
@@ -219,7 +303,7 @@ function handleSwitchInput(dt) {
 
   state.switchTimer -= dt;
   if (state.switchTimer <= 0) {
-    state.switchTimer = 0.35;
+    state.switchTimer = 0.25;
     if (state.controlledPlayer && state.possessor !== state.controlledPlayer) {
       const mates = state.players.filter((p) => p.team === 'A' && !p.isGK);
       mates.sort((a, b) => dist(a, state.ball) - dist(b, state.ball));
@@ -298,8 +382,14 @@ function wireButtons() {
     SFX.click();
     COMMENTARY.unlock();
     const sel = UI.getSelection();
-    loadMatch(sel.a, sel.b);
+    applyRuntimeFromSelection(sel);
     UI.hideOverlay('overlay-menu');
+    if (sel.mode === 'tournament') {
+      startTournament(sel.a);
+    } else {
+      state.tournament = null;
+      loadMatch(sel.a, sel.b);
+    }
     COMMENTARY.kickoff();
   });
 
@@ -327,11 +417,7 @@ function wireButtons() {
     UI.hideOverlay('overlay-pause');
     loadMatch(state.teamA, state.teamB);
   });
-  document.getElementById('btn-play-again').addEventListener('pointerdown', () => {
-    UI.hideOverlay('overlay-fulltime');
-    loadMatch(state.teamA, state.teamB);
-    COMMENTARY.kickoff();
-  });
+  document.getElementById('btn-quit').addEventListener('pointerdown', quitToMenu);
 }
 
 function init() {

@@ -17,6 +17,12 @@ function rivalGoalPos(team) {
 }
 function attackDir(team) { return team === 'A' ? -1 : 1; } // sign applied to ly progress in world Y
 
+// only the AI-only rival team (B) is scaled by the chosen difficulty; the human's own team plays at a neutral baseline
+const NEUTRAL_DIFF = { speedMul: 1, accuracyMul: 1, tackleMul: 1, gkMul: 1 };
+function diffFor(team) {
+  return team === 'B' && typeof RUNTIME !== 'undefined' ? RUNTIME.difficulty : NEUTRAL_DIFF;
+}
+
 function homePosition(team, lx, ly) {
   const ownY = ownGoalPos(team).y;
   const dir = attackDir(team);
@@ -41,7 +47,7 @@ function updateAI(dt, state) {
 
     const chaser = getChaser(p.team, state);
     if (chaser === p) {
-      chase(p, ball, dt, 1.0);
+      chase(p, ball, dt, diffFor(p.team).speedMul);
     } else {
       supportFormation(p, dt, state);
     }
@@ -87,9 +93,10 @@ function supportFormation(p, dt, state) {
 function updateCarrierAI(p, dt, state) {
   const goal = rivalGoalPos(p.team);
   const distToGoal = Math.hypot(goal.x - p.x, goal.y - p.y);
+  const diff = diffFor(p.team);
 
   // shoot when close enough and reasonably centred
-  if (distToGoal < 190 && Math.abs(goal.x - p.x) < 130) {
+  if (distToGoal < 220 && Math.abs(goal.x - p.x) < 150) {
     aiKick(p, state, goal.x, goal.y, 1.0, true);
     return;
   }
@@ -99,7 +106,7 @@ function updateCarrierAI(p, dt, state) {
   if (p.passCooldown <= 0) {
     const dir = attackDir(p.team);
     const mate = state.players.find((o) => o.team === p.team && o !== p && !o.isGK &&
-      (o.y - p.y) * dir > 40 && Math.abs(o.x - p.x) < 160 && dist(o, p) < 220);
+      (o.y - p.y) * dir > 45 && Math.abs(o.x - p.x) < 185 && dist(o, p) < 255);
     if (mate && Math.random() < 0.5) {
       aiKick(p, state, mate.x + mate.vx * 0.2, mate.y + mate.vy * 0.2, 0.55, false);
       p.passCooldown = 1.2;
@@ -117,7 +124,7 @@ function updateCarrierAI(p, dt, state) {
     steerX += awayX * 1.4;
     steerY += awayY * 1.4;
   }
-  p.steer(steerX, steerY, dt, 1.0);
+  p.steer(steerX, steerY, dt, diff.speedMul);
 }
 
 function nearestOpponent(p, state) {
@@ -134,7 +141,8 @@ function aiKick(p, state, tx, ty, power, isShot) {
   const dx = tx - state.ball.x, dy = ty - state.ball.y;
   const len = Math.hypot(dx, dy) || 1;
   const speed = (isShot ? 300 : 210) * power + Math.random() * 20;
-  const inaccuracy = isShot ? 0.16 : 0.08;
+  const baseInaccuracy = isShot ? 0.16 : 0.08;
+  const inaccuracy = baseInaccuracy / diffFor(p.team).accuracyMul;
   const ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * inaccuracy;
   state.ball.kick(Math.cos(ang) * speed, Math.sin(ang) * speed);
   state.ball.lastTouchTeam = p.team;
@@ -148,22 +156,23 @@ function updateGoalkeeper(gk, dt, state) {
   const ball = state.ball;
   const own = ownGoalPos(gk.team);
   const dir = attackDir(gk.team);
-  const lineY = own.y - dir * 20; // stands a little in front of the line
+  const diff = diffFor(gk.team);
+  const lineY = own.y - dir * 22; // stands a little in front of the line
   const boxHalf = FIELD.BOX_W / 2 - gk.radius;
 
-  const ballInDanger = Math.abs(ball.y - own.y) < FIELD.BOX_D + 40 && Math.abs(ball.x - FIELD.CX) < FIELD.BOX_W / 2 + 30;
+  const ballInDanger = Math.abs(ball.y - own.y) < FIELD.BOX_D + 45 && Math.abs(ball.x - FIELD.CX) < FIELD.BOX_W / 2 + 30;
 
   let tx = clamp(ball.x, FIELD.CX - boxHalf, FIELD.CX + boxHalf);
   let ty = lineY;
 
   if (ballInDanger) {
     // rush toward the ball a bit when it's dangerously close
-    const rush = clamp((FIELD.BOX_D + 40 - Math.abs(ball.y - own.y)) / (FIELD.BOX_D + 40), 0, 1);
-    ty = lineY - dir * rush * 26;
+    const rush = clamp((FIELD.BOX_D + 45 - Math.abs(ball.y - own.y)) / (FIELD.BOX_D + 45), 0, 1);
+    ty = lineY - dir * rush * 28;
     tx = clamp(ball.x, FIELD.CX - FIELD.GOAL_W / 2 - 6, FIELD.CX + FIELD.GOAL_W / 2 + 6);
   }
 
-  gk.steer(tx - gk.x, ty - gk.y, dt, ballInDanger ? 1 : 0.6);
+  gk.steer(tx - gk.x, ty - gk.y, dt, (ballInDanger ? 1 : 0.6) * diff.gkMul);
 
   // if carrying (caught the ball), clear it upfield after a short hold
   if (state.possessor === gk) {

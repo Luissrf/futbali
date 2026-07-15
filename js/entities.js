@@ -24,8 +24,8 @@ class Player {
     this.vx = 0;
     this.vy = 0;
     this.radius = isGK ? 13 : 12;
-    this.maxSpeed = isGK ? 118 : (role === 'FWD' ? 148 : 132);
-    this.accel = 900;
+    this.maxSpeed = isGK ? 128 : (role === 'FWD' ? 168 : 150);
+    this.accel = 1300;
     this.angle = team === 'A' ? -Math.PI / 2 : Math.PI / 2;
     this.isControlled = false;
     this.kickCooldown = 0;
@@ -100,14 +100,19 @@ class Player {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // trim sash (second kit color)
-    if (!this.isGK) {
+    // kit trim (second kit color), style depends on the chosen kit for this team
+    const kit = (typeof RUNTIME !== 'undefined' && RUNTIME.kitStyle[this.team]) || KIT_STYLES[0];
+    if (!this.isGK && kit.id !== 'solid') {
       ctx.save();
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.clip();
       ctx.fillStyle = c.trim;
-      ctx.fillRect(-r, -r * 0.28, r * 2, r * 0.22);
+      if (kit.id === 'stripes') {
+        for (let sx = -r; sx < r; sx += r * 0.55) ctx.fillRect(sx, -r, r * 0.22, r * 2);
+      } else {
+        ctx.fillRect(-r, -r * 0.28, r * 2, r * 0.22);
+      }
       ctx.restore();
     }
     ctx.lineWidth = 1.5;
@@ -157,10 +162,10 @@ class Ball {
   followPlayer(p, dt) {
     this.trail.push({ x: this.x, y: this.y });
     if (this.trail.length > 6) this.trail.shift();
-    const followDist = p.radius + this.radius + 1;
+    const followDist = p.radius + this.radius - 2;
     const tx = p.x + Math.cos(p.angle) * followDist;
     const ty = p.y + Math.sin(p.angle) * followDist;
-    const ease = Math.min(1, dt * 10);
+    const ease = Math.min(1, dt * 14);
     this.x += (tx - this.x) * ease;
     this.y += (ty - this.y) * ease;
     this.vx = p.vx;
@@ -217,11 +222,13 @@ class Ball {
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fill();
 
+    const skin = (typeof RUNTIME !== 'undefined' && RUNTIME.ballSkin) || { base: '#ffffff', shade: '#d8d8d8', pattern: '#222' };
+
     ctx.translate(this.x, this.y);
     ctx.rotate(this.spin);
     const grad = ctx.createRadialGradient(-2, -2, 1, 0, 0, this.radius);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(1, '#d8d8d8');
+    grad.addColorStop(0, skin.base);
+    grad.addColorStop(1, skin.shade);
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.fillStyle = grad;
@@ -231,7 +238,7 @@ class Ball {
     ctx.stroke();
 
     // simple pentagon pattern
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = skin.pattern;
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
       ctx.beginPath();

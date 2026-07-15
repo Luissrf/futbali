@@ -1,9 +1,9 @@
-// DOM/HUD layer: country picker, scoreboard, overlays, power meter.
+// DOM/HUD layer: country picker, mode/difficulty/skins pickers, scoreboard, overlays, power meter.
 
 const UI = (() => {
   const el = (id) => document.getElementById(id);
 
-  const selection = { a: 'BRA', b: 'ARG' };
+  const selection = { a: 'BRA', b: 'ARG', mode: 'normal', difficulty: 'normal', kit: 'sash', ballSkin: 'classic' };
 
   function renderGrid(teamKey) {
     const grid = el(teamKey === 'a' ? 'grid-team-a' : 'grid-team-b');
@@ -25,12 +25,53 @@ const UI = (() => {
     });
   }
 
+  function wireSegmented(containerId, dataAttr, key, onChange) {
+    const container = el(containerId);
+    container.querySelectorAll('.seg-btn').forEach((btn) => {
+      btn.addEventListener('pointerdown', () => {
+        selection[key] = btn.dataset[dataAttr];
+        container.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('selected', b === btn));
+        SFX.click();
+        if (onChange) onChange(selection[key]);
+      });
+    });
+  }
+
+  function renderBallSkins() {
+    const row = el('ball-skin-row');
+    row.innerHTML = '';
+    BALL_SKINS.forEach((skin) => {
+      const dot = document.createElement('div');
+      dot.className = 'skin-swatch' + (selection.ballSkin === skin.id ? ' selected' : '');
+      dot.style.background = `radial-gradient(circle at 35% 30%, ${skin.base}, ${skin.shade})`;
+      dot.title = skin.name;
+      dot.addEventListener('pointerdown', () => {
+        selection.ballSkin = skin.id;
+        SFX.click();
+        renderBallSkins();
+      });
+      row.appendChild(dot);
+    });
+  }
+
+  function updateModeVisibility() {
+    const isTournament = selection.mode === 'tournament';
+    el('row-team-b').classList.toggle('hidden', isTournament);
+    el('row-tournament-note').classList.toggle('hidden', !isTournament);
+  }
+
   function initMenu() {
     renderGrid('a');
     renderGrid('b');
+    renderBallSkins();
     el('pick-a-name').textContent = findCountry(selection.a).name;
     el('pick-b-name').textContent = findCountry(selection.b).name;
     el('game-title').addEventListener('pointerdown', () => EASTER_EGGS.onTitleTap());
+
+    wireSegmented('mode-toggle', 'mode', 'mode', updateModeVisibility);
+    wireSegmented('difficulty-toggle', 'diff', 'difficulty');
+    wireSegmented('kit-toggle', 'kit', 'kit');
+    updateModeVisibility();
   }
 
   function refreshGridsIfGhostUnlocked() {
@@ -43,6 +84,10 @@ const UI = (() => {
     return {
       a: selection.a === 'GHO' ? GHOST_TEAM : findCountry(selection.a),
       b: selection.b === 'GHO' ? GHOST_TEAM : findCountry(selection.b),
+      mode: selection.mode,
+      difficulty: findDifficulty(selection.difficulty),
+      kit: findKitStyle(selection.kit),
+      ballSkin: findBallSkin(selection.ballSkin),
     };
   }
 
@@ -68,9 +113,16 @@ const UI = (() => {
     setTimeout(() => hideOverlay('overlay-goal'), 1500);
   }
 
-  function showFulltime(scoreA, scoreB, teamAName, teamBName) {
-    el('fulltime-title').textContent = 'FINAL DEL PARTIDO';
-    el('fulltime-score').textContent = `${teamAName} ${scoreA} - ${scoreB} ${teamBName}`;
+  // cfg: { title, scoreLine, primaryLabel, primaryAction, secondaryLabel, secondaryAction }
+  function showMatchEnd(cfg) {
+    el('fulltime-title').textContent = cfg.title;
+    el('fulltime-score').textContent = cfg.scoreLine;
+    const primary = el('btn-fulltime-primary');
+    const secondary = el('btn-fulltime-secondary');
+    primary.textContent = cfg.primaryLabel;
+    secondary.textContent = cfg.secondaryLabel;
+    primary.onclick = () => { hideOverlay('overlay-fulltime'); cfg.primaryAction(); };
+    secondary.onclick = () => { hideOverlay('overlay-fulltime'); cfg.secondaryAction(); };
     showOverlay('overlay-fulltime');
   }
 
@@ -84,5 +136,5 @@ const UI = (() => {
     powerVisible = false;
   }
 
-  return { initMenu, getSelection, showOverlay, hideOverlay, updateHud, flashGoal, showFulltime, setPower, hidePower };
+  return { initMenu, getSelection, showOverlay, hideOverlay, updateHud, flashGoal, showMatchEnd, setPower, hidePower };
 })();
