@@ -74,7 +74,10 @@
   <div id="overlay-menu" class="overlay hidden">
     <div class="overlay-card menu-card">
       <div class="menu-scroll">
-        <div class="coin-bar">🪙 <span id="coin-balance">0</span></div>
+        <div class="coin-bar-row">
+          <div class="coin-bar">🪙 <span id="coin-balance">0</span></div>
+          <button id="btn-shop" class="shop-btn">🛒 Tienda</button>
+        </div>
 
         <div class="picker-row">
           <div class="picker-label">Jugadores</div>
@@ -138,6 +141,26 @@
       <div class="menu-footer">
         <button id="btn-play" class="menu-btn primary">JUGAR</button>
         <div class="hint">Joystick para moverte · botón TIRO (mantené para más potencia) · CAMBIAR para elegir jugador</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay-shop" class="overlay hidden">
+    <div class="overlay-card shop-card">
+      <div class="menu-scroll">
+        <h2>🛒 Tienda</h2>
+        <div class="coin-bar" id="shop-coin-bar">🪙 <span id="shop-coin-balance">0</span></div>
+        <div class="picker-row">
+          <div class="picker-label">Balones</div>
+          <div id="shop-balls" class="shop-grid"></div>
+        </div>
+        <div class="picker-row">
+          <div class="picker-label">Camisetas</div>
+          <div id="shop-kits" class="shop-grid"></div>
+        </div>
+      </div>
+      <div class="menu-footer">
+        <button id="btn-shop-close" class="menu-btn primary">VOLVER</button>
       </div>
     </div>
   </div>

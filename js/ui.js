@@ -1,4 +1,13 @@
-// DOM/HUD layer: splash, country picker, mode/difficulty/players/skins/missions, scoreboard, overlays, power meters.
+// DOM/HUD layer: splash, country picker, mode/difficulty/players/skins/missions, shop, scoreboard, overlays, power meters.
+//
+// Note on events: everything that lives inside a scrollable container (.menu-scroll,
+// .country-grid) is wired with 'click', not 'pointerdown'. 'click' is what browsers use to
+// distinguish a genuine tap from the start of a scroll/swipe gesture — 'pointerdown' fires the
+// instant a finger touches down, before that distinction is made, which both mis-fires taps
+// during a scroll attempt and (since these handlers rebuild their container's innerHTML) yanks
+// the touched element out from under the finger mid-gesture, killing the scroll entirely.
+// Fast-response controls that are NOT inside a scrolling container (joystick, shoot/switch
+// buttons, pause) still use 'pointerdown' for minimum input latency.
 
 const UI = (() => {
   const el = (id) => document.getElementById(id);
@@ -14,7 +23,7 @@ const UI = (() => {
       cell.className = 'country-cell' + (c.code === 'GHO' ? ' ghost' : '') + (selection[teamKey] === c.code ? ' selected' : '');
       cell.textContent = c.flag;
       cell.title = c.name;
-      cell.addEventListener('pointerdown', () => {
+      cell.addEventListener('click', () => {
         if (c.code === 'BRA') EASTER_EGGS.onFlagTap('BRA');
         selection[teamKey] = c.code;
         el(teamKey === 'a' ? 'pick-a-name' : 'pick-b-name').textContent = c.name;
@@ -28,7 +37,7 @@ const UI = (() => {
   function wireSegmented(containerId, dataAttr, key, onChange) {
     const container = el(containerId);
     container.querySelectorAll('.seg-btn').forEach((btn) => {
-      btn.addEventListener('pointerdown', () => {
+      btn.addEventListener('click', () => {
         selection[key] = btn.dataset[dataAttr];
         container.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('selected', b === btn));
         SFX.click();
@@ -48,25 +57,14 @@ const UI = (() => {
       dot.style.background = `radial-gradient(circle at 35% 30%, ${skin.base}, ${skin.shade})`;
       dot.title = unlocked ? skin.name : `${skin.name} · 🪙${price}`;
       dot.textContent = unlocked ? '' : '🔒';
-      dot.addEventListener('pointerdown', () => {
+      dot.addEventListener('click', () => {
         if (unlocked) {
           selection.ballSkin = skin.id;
           SFX.click();
           renderBallSkins();
           return;
         }
-        const res = PROGRESS.tryPurchase('ballSkin', skin.id);
-        if (res.ok) {
-          selection.ballSkin = skin.id;
-          SFX.goal();
-          EASTER_EGGS.toast(`⚽ ¡Desbloqueaste el balón ${skin.name}!`);
-          renderBallSkins();
-          renderCoinBalance();
-          (res.unlocks || []).forEach((a) => EASTER_EGGS.toast(`🏅 ${a.text} (+${a.reward} 🪙)`));
-        } else {
-          SFX.postHit();
-          EASTER_EGGS.toast(`🪙 Te faltan ${res.needed} monedas`);
-        }
+        buyBallSkin(skin.id, true);
       });
       row.appendChild(dot);
     });
@@ -81,26 +79,91 @@ const UI = (() => {
       const price = PROGRESS.priceOf('kit', id);
       btn.textContent = unlocked ? style.name.toUpperCase() : `${style.name.toUpperCase()} 🔒${price}`;
       btn.classList.toggle('selected', selection.kit === id);
-      btn.onpointerdown = () => {
+      btn.onclick = () => {
         if (unlocked) {
           selection.kit = id;
           SFX.click();
           renderKitButtons();
           return;
         }
-        const res = PROGRESS.tryPurchase('kit', id);
-        if (res.ok) {
-          selection.kit = id;
-          SFX.goal();
-          EASTER_EGGS.toast(`👕 ¡Desbloqueaste la camiseta ${style.name}!`);
-          renderKitButtons();
-          renderCoinBalance();
-          (res.unlocks || []).forEach((a) => EASTER_EGGS.toast(`🏅 ${a.text} (+${a.reward} 🪙)`));
-        } else {
-          SFX.postHit();
-          EASTER_EGGS.toast(`🪙 Te faltan ${res.needed} monedas`);
-        }
+        buyKit(id, true);
       };
+    });
+  }
+
+  function buyBallSkin(id, selectAfter) {
+    const skin = findBallSkin(id);
+    const res = PROGRESS.tryPurchase('ballSkin', id);
+    if (res.ok) {
+      if (selectAfter) selection.ballSkin = id;
+      SFX.goal();
+      EASTER_EGGS.toast(`⚽ ¡Desbloqueaste el balón ${skin.name}!`);
+      renderBallSkins();
+      renderShop();
+      renderCoinBalance();
+      (res.unlocks || []).forEach((a) => EASTER_EGGS.toast(`🏅 ${a.text} (+${a.reward} 🪙)`));
+    } else {
+      SFX.postHit();
+      EASTER_EGGS.toast(`🪙 Te faltan ${res.needed} monedas`);
+    }
+  }
+
+  function buyKit(id, selectAfter) {
+    const style = findKitStyle(id);
+    const res = PROGRESS.tryPurchase('kit', id);
+    if (res.ok) {
+      if (selectAfter) selection.kit = id;
+      SFX.goal();
+      EASTER_EGGS.toast(`👕 ¡Desbloqueaste la camiseta ${style.name}!`);
+      renderKitButtons();
+      renderShop();
+      renderCoinBalance();
+      (res.unlocks || []).forEach((a) => EASTER_EGGS.toast(`🏅 ${a.text} (+${a.reward} 🪙)`));
+    } else {
+      SFX.postHit();
+      EASTER_EGGS.toast(`🪙 Te faltan ${res.needed} monedas`);
+    }
+  }
+
+  function renderShop() {
+    el('shop-coin-balance').textContent = PROGRESS.coins;
+
+    const ballsEl = el('shop-balls');
+    ballsEl.innerHTML = '';
+    BALL_SKINS.forEach((skin) => {
+      const unlocked = PROGRESS.isUnlocked('ballSkin', skin.id);
+      const price = PROGRESS.priceOf('ballSkin', skin.id);
+      const card = document.createElement('div');
+      card.className = 'shop-item' + (unlocked ? ' owned' : '') + (selection.ballSkin === skin.id ? ' selected' : '');
+      card.innerHTML = `
+        <div class="shop-item-swatch" style="background:radial-gradient(circle at 35% 30%, ${skin.base}, ${skin.shade})"></div>
+        <div class="shop-item-name">${skin.name}</div>
+        ${unlocked ? '<div class="shop-item-owned-tag">✅ Tuyo</div>' : `<div class="shop-item-price">🪙 ${price}</div>`}
+      `;
+      card.addEventListener('click', () => {
+        if (unlocked) { selection.ballSkin = skin.id; SFX.click(); renderShop(); renderBallSkins(); return; }
+        buyBallSkin(skin.id, true);
+      });
+      ballsEl.appendChild(card);
+    });
+
+    const kitsEl = el('shop-kits');
+    kitsEl.innerHTML = '';
+    KIT_STYLES.forEach((style) => {
+      const unlocked = PROGRESS.isUnlocked('kit', style.id);
+      const price = PROGRESS.priceOf('kit', style.id);
+      const card = document.createElement('div');
+      card.className = 'shop-item' + (unlocked ? ' owned' : '') + (selection.kit === style.id ? ' selected' : '');
+      card.innerHTML = `
+        <div class="shop-item-swatch" style="background:#2f6fed"></div>
+        <div class="shop-item-name">${style.name}</div>
+        ${unlocked ? '<div class="shop-item-owned-tag">✅ Tuyo</div>' : `<div class="shop-item-price">🪙 ${price}</div>`}
+      `;
+      card.addEventListener('click', () => {
+        if (unlocked) { selection.kit = style.id; SFX.click(); renderShop(); renderKitButtons(); return; }
+        buyKit(style.id, true);
+      });
+      kitsEl.appendChild(card);
     });
   }
 
@@ -149,6 +212,7 @@ const UI = (() => {
     renderKitButtons();
     renderCoinBalance();
     renderMissions();
+    renderShop();
     el('pick-a-name').textContent = findCountry(selection.a).name;
     el('pick-b-name').textContent = findCountry(selection.b).name;
     el('game-title').addEventListener('pointerdown', () => EASTER_EGGS.onTitleTap());
@@ -158,6 +222,8 @@ const UI = (() => {
       hideOverlay('overlay-splash');
       showOverlay('overlay-menu');
     });
+    el('btn-shop').addEventListener('click', () => { SFX.click(); renderShop(); showOverlay('overlay-shop'); });
+    el('btn-shop-close').addEventListener('click', () => { SFX.click(); hideOverlay('overlay-shop'); });
 
     wireSegmented('players-toggle', 'players', 'players', updatePlayersVisibility);
     wireSegmented('mode-toggle', 'mode', 'mode', updateModeVisibility);
@@ -190,6 +256,7 @@ const UI = (() => {
     renderMissions();
     renderBallSkins();
     renderKitButtons();
+    renderShop();
   }
 
   function showOverlay(id) { el(id).classList.remove('hidden'); }
