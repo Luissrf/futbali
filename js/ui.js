@@ -47,7 +47,7 @@ const UI = (() => {
   }
 
   function ballSkinList() {
-    return BALL_SKINS.concat(PROGRESS.isUnlocked('ballSkin', 'heart') ? [HEART_SKIN] : []);
+    return BALL_SKINS.concat(PROGRESS.isUnlocked('ballSkin', 'brasil') ? [BRAZIL_SKIN] : []);
   }
 
   function renderBallSkins() {

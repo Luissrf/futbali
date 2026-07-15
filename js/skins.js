@@ -13,8 +13,8 @@ const KIT_STYLES = [
   { id: 'solid', name: 'Liso' },
 ];
 
-// secret ball skin — never listed in BALL_SKINS/the shop, only unlockable via a redeem code
-const HEART_SKIN = { id: 'heart', name: 'Corazón', base: '#ff9ec4', shade: '#e0356b', pattern: '#7a0f33' };
+// secret ball skin — never listed in BALL_SKINS/the shop, only unlockable via the "ALI" redeem code
+const BRAZIL_SKIN = { id: 'brasil', name: 'Brasil', base: '#ffd400', shade: '#0a6b2d', pattern: '#1c4fa0' };
 
 const DIFFICULTIES = {
   easy: { name: 'Fácil', speedMul: 0.85, accuracyMul: 0.6, tackleMul: 0.6, gkMul: 0.75 },
@@ -23,7 +23,7 @@ const DIFFICULTIES = {
 };
 
 function findBallSkin(id) {
-  if (id === 'heart') return HEART_SKIN;
+  if (id === 'brasil') return BRAZIL_SKIN;
   return BALL_SKINS.find((s) => s.id === id) || BALL_SKINS[0];
 }
 function findKitStyle(id) { return KIT_STYLES.find((s) => s.id === id) || KIT_STYLES[0]; }

@@ -33,7 +33,7 @@ const SHOP_PRICES = {
 // Secret redeemable codes — entered by the player in the "Códigos secretos" screen. Matching is
 // accent/case/punctuation-insensitive (see normalizeCode), so "Me Gustas ❤️" and "megustas" both hit 'love'.
 const SECRET_CODES = [
-  { id: 'love', keys: ['MEGUSTAS', 'TEQUIERO', 'TEAMO'], coins: 100, unlock: { kind: 'ballSkin', id: 'heart' }, message: '😍 ¡Qué tierno! +100 🪙 y el balón secreto Corazón' },
+  { id: 'love', keys: ['ALI'], coins: 100, unlock: { kind: 'ballSkin', id: 'brasil' }, message: 'Me gustas ❤️ +100 🪙 y el balón especial de Brasil 🇧🇷' },
   { id: 'star', keys: ['MONREAL'], coins: 50, message: '⭐ ¡Monreal te manda un saludo! +50 🪙' },
   { id: 'welcome', keys: ['FUTBALI'], coins: 40, message: '⚽ +40 🪙 de bienvenida a FUTBALI' },
   { id: 'champion', keys: ['CAMPEON', 'CAMPEÓN'], coins: 60, message: '🏆 +60 🪙 de campeón honorario' },
