@@ -473,11 +473,20 @@ function update(dt) {
 
   EASTER_EGGS.updateGiantHeads();
 
-  if (state.controlledPlayer) state.controlledPlayer.steer(INPUT.move.x, INPUT.move.y, dt, 1);
+  // Player.steer() expects a direction vector on the same rough scale the AI uses (real pixel
+  // offsets to a target, typically tens to hundreds of px) — it has a small deadzone (len > 3)
+  // to stop AI players jittering when they're basically already on their target. INPUT.move.x/y
+  // is a normalized joystick tilt (-1..1), so its length is at most ~1.4 and NEVER cleared that
+  // deadzone — the human player's steer() call was always taking the "no input" branch, meaning
+  // the joystick could never actually move the player. Scaling it up here keeps the same direction
+  // (steer() only cares about the dx/dy ratio and length-vs-deadzone) while putting it on a scale
+  // where any real joystick tilt clears the deadzone.
+  const JOYSTICK_SCALE = 100;
+  if (state.controlledPlayer) state.controlledPlayer.steer(INPUT.move.x * JOYSTICK_SCALE, INPUT.move.y * JOYSTICK_SCALE, dt, 1);
   // Player 2 is seated at the opposite edge of the screen facing Player 1, so their sense of
   // "left/right" is mirrored relative to the screen's absolute frame — negate X only.
   // "Forward" (away from their body) already matches team B's attack direction, so Y stays as-is.
-  if (state.twoPlayer && state.controlledPlayerB) state.controlledPlayerB.steer(-INPUT2.move.x, INPUT2.move.y, dt, 1);
+  if (state.twoPlayer && state.controlledPlayerB) state.controlledPlayerB.steer(-INPUT2.move.x * JOYSTICK_SCALE, INPUT2.move.y * JOYSTICK_SCALE, dt, 1);
   updateAI(dt, state);
   updatePossession(dt);
 
