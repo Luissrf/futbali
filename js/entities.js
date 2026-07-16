@@ -163,6 +163,7 @@ class Ball {
     this.spin = 0;
     this.lastTouchTeam = null;
     this.lastTouchPlayer = null;
+    this.lastKickWasShot = false;
     this.trail = [];
   }
 

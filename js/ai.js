@@ -60,7 +60,11 @@ function updateAI(dt, state) {
     const presser = p.team === 'A' ? presserA : presserB;
     const oppositionHasBall = state.possessor && state.possessor.team !== p.team;
 
-    if (chaser === p) {
+    // A tackle must create actual space, not just disable the next steal roll while the loser
+    // remains glued to the new carrier. Nearby AI defenders back off during possession grace.
+    if (oppositionHasBall && state.possessionGrace > 0 && dist(p, state.possessor) < 105) {
+      retreatFromCarrier(p, state.possessor, dt);
+    } else if (chaser === p) {
       chase(p, ball, dt, diffFor(p.team, state).speedMul);
     } else if (presser === p && oppositionHasBall && dist(p, state.possessor) < 320) {
       pressBallCarrier(p, state, dt);
@@ -68,6 +72,16 @@ function updateAI(dt, state) {
       supportFormation(p, dt, state);
     }
   }
+}
+
+function retreatFromCarrier(p, carrier, dt) {
+  let dx = p.x - carrier.x, dy = p.y - carrier.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 0.01) {
+    dx = Math.cos(p.angle);
+    dy = Math.sin(p.angle);
+  }
+  p.steer(dx, dy, dt, 0.72);
 }
 
 // pick the outfield player (per team) best placed to chase the ball
@@ -202,29 +216,9 @@ function updateCarrierAI(p, dt, state) {
   const biasFade = clamp(distToGoal / 380, 0, 1);
   let steerX = goal.x + (p.dribbleBias || 0) * biasFade - p.x;
   let steerY = goal.y - p.y;
-  let speedScale = diff.speedMul;
-  if (defender && defenderDist < 38 && state.possessionGrace <= 0) {
-    // ease toward the escape direction instead of snapping to the raw instantaneous vector — right
-    // at jostling range, that raw vector can flip almost every frame from tiny position noise
-    // (collision resolution nudging both players a pixel apart, then the joystick pushing them back
-    // together), which fed a wildly oscillating target into steer() and looked like fast spinning
-    // even with its turn-rate cap
-    const awayX = p.x - defender.x, awayY = p.y - defender.y;
-    const alen = Math.hypot(awayX, awayY) || 1;
-    const targetEvX = (awayX / alen) * 60, targetEvY = (awayY / alen) * 60;
-    const ease = Math.min(1, dt * 6);
-    p.evadeX = (p.evadeX || 0) + (targetEvX - (p.evadeX || 0)) * ease;
-    p.evadeY = (p.evadeY || 0) + (targetEvY - (p.evadeY || 0)) * ease;
-    steerX += p.evadeX;
-    steerY += p.evadeY;
-    speedScale *= 0.72;
-  } else {
-    const decay = Math.max(0, 1 - dt * 8);
-    p.evadeX = (p.evadeX || 0) * decay;
-    p.evadeY = (p.evadeY || 0) * decay;
-    steerX += p.evadeX;
-    steerY += p.evadeY;
-  }
+  // Close pressure should make the carrier release the ball, not orbit the defender. The old
+  // escape-vector steering was the source of the rapid pirouettes during shoulder-to-shoulder play.
+  const speedScale = diff.speedMul * (pressured ? 0.82 : 1);
   p.steer(steerX, steerY, dt, speedScale);
 }
 
@@ -253,6 +247,7 @@ function aiKick(p, state, tx, ty, power, isShot) {
   state.ball.kick(Math.cos(ang) * speed, Math.sin(ang) * speed);
   state.ball.lastTouchTeam = p.team;
   state.ball.lastTouchPlayer = p;
+  state.ball.lastKickWasShot = isShot;
   state.possessor = null;
   p.kickCooldown = 0.25;
   SFX.kick();

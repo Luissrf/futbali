@@ -2,6 +2,7 @@
 
 const HALF_SECONDS = 90;
 const TACKLE_CHANCE_PER_60FPS = 0.034;
+const POSSESSION_GRACE_SECONDS = 0.8;
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -63,7 +64,9 @@ function setupKickoff(kickingTeam) {
   }
   state.ball.x = FIELD.CX; state.ball.y = FIELD.CY;
   state.ball.vx = 0; state.ball.vy = 0; state.ball.trail = [];
+  state.ball.lastKickWasShot = false;
   state.possessor = state.players.find((p) => p.team === kickingTeam && p.role === 'MID');
+  state.possessionGrace = 0;
   // a finger can be resting on the joystick/shoot button through the frozen goal-celebration
   // window (the update loop that would normally consume/clear these is paused), so force both
   // rigs back to neutral here rather than risk carrying a stale gesture into the new kickoff
@@ -301,6 +304,7 @@ function updatePossession(dt) {
         COMMENTARY.nearMiss();
       }
       state.possessor = best;
+      ball.lastKickWasShot = false;
     }
     return;
   }
@@ -324,7 +328,7 @@ function updatePossession(dt) {
       const chance = TACKLE_CHANCE_PER_60FPS * bonus * diffMul * proximity * (dt * 60);
       if (Math.random() < chance) {
         state.possessor = p;
-        state.possessionGrace = 0.45;
+        state.possessionGrace = POSSESSION_GRACE_SECONDS;
         SFX.bounce();
         if (isHuman) state.matchTackles++;
         if (p === state.controlledPlayer) COMMENTARY.tackle();
@@ -385,6 +389,7 @@ function handleShootFor(side, rig, powerSide) {
     state.ball.kick((aim.x / len) * speed, (aim.y / len) * speed);
     state.ball.lastTouchTeam = side;
     state.ball.lastTouchPlayer = cp;
+    state.ball.lastKickWasShot = true;
     state.possessor = null;
     cp.kickCooldown = 0.16;
     SFX.kick();
@@ -434,6 +439,7 @@ function handlePassFor(side, rig, state) {
   state.ball.kick((dx / len) * speed, (dy / len) * speed);
   state.ball.lastTouchTeam = side;
   state.ball.lastTouchPlayer = cp;
+  state.ball.lastKickWasShot = false;
   state.possessor = null;
   cp.kickCooldown = 0.16;
   SFX.kick();
@@ -461,7 +467,7 @@ function handleTackleFor(side, rig, dt) {
   const chance = clamp(0.85 - (d / range) * 0.45, 0.35, 0.85); // closer = much more likely to land
   if (Math.random() < chance) {
     state.possessor = cp;
-    state.possessionGrace = 0.45;
+    state.possessionGrace = POSSESSION_GRACE_SECONDS;
     state.matchTackles++;
     SFX.bounce();
     COMMENTARY.tackle();
@@ -503,10 +509,18 @@ function handleSwitchFor(side, rig, dt) {
 function checkGoalsAndBounds() {
   const ball = state.ball;
   const withinGoalX = ball.x > FIELD.GOAL_X0 + ball.radius - 2 && ball.x < FIELD.GOAL_X1 - ball.radius + 2;
+
+  // Carrying the ball over the line is not a shot. Keep it in play so the carrier has to release
+  // TIRO; only a loose ball produced by a shot can score.
+  if (state.possessor) {
+    ball.y = clamp(ball.y, FIELD.TOP + ball.radius, FIELD.BOTTOM - ball.radius);
+    return;
+  }
+
   if (ball.y - ball.radius < FIELD.TOP) {
-    if (withinGoalX) triggerGoal('A'); else resetForGoalKick('B');
+    if (withinGoalX && ball.lastKickWasShot) triggerGoal('A'); else resetForGoalKick('B');
   } else if (ball.y + ball.radius > FIELD.BOTTOM) {
-    if (withinGoalX) triggerGoal('B'); else resetForGoalKick('A');
+    if (withinGoalX && ball.lastKickWasShot) triggerGoal('B'); else resetForGoalKick('A');
   }
 }
 
