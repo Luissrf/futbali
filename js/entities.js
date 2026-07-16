@@ -23,9 +23,9 @@ class Player {
     this.homeY = y;
     this.vx = 0;
     this.vy = 0;
-    this.radius = isGK ? 14 : 13;
-    this.maxSpeed = isGK ? 148 : (role === 'FWD' ? 196 : 174);
-    this.accel = 1500;
+    this.radius = isGK ? 15 : 14;
+    this.maxSpeed = isGK ? 165 : (role === 'FWD' ? 216 : 192);
+    this.accel = 1650;
     this.angle = team === 'A' ? -Math.PI / 2 : Math.PI / 2;
     this.isControlled = false;
     this.kickCooldown = 0;
@@ -158,7 +158,7 @@ class Ball {
     this.y = y;
     this.vx = 0;
     this.vy = 0;
-    this.radius = 8;
+    this.radius = 9;
     this.spin = 0;
     this.lastTouchTeam = null;
     this.lastTouchPlayer = null;
@@ -193,7 +193,7 @@ class Ball {
     this.y += this.vy * dt;
 
     const speed = Math.hypot(this.vx, this.vy);
-    const friction = Math.min(speed, 190 * dt);
+    const friction = Math.min(speed, 205 * dt);
     if (speed > 0.01) {
       this.vx -= (this.vx / speed) * friction;
       this.vy -= (this.vy / speed) * friction;

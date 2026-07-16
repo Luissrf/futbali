@@ -360,14 +360,14 @@ function handleShootFor(side, rig, powerSide) {
     // are roughly on target actually threaten the goal instead of drifting wide
     const goal = rivalGoalPos(cp.team);
     const goalDist = Math.hypot(goal.x - cp.x, goal.y - cp.y);
-    if (goalDist < 340) {
+    if (goalDist < 420) {
       const gx = goal.x - cp.x, gy = goal.y - cp.y;
       const glen = Math.hypot(gx, gy) || 1;
       aim = { x: aim.x + (gx / glen) * 0.22, y: aim.y + (gy / glen) * 0.22 };
     }
     const len = Math.hypot(aim.x, aim.y) || 1;
     const power = rig.releasedPower;
-    const speed = 200 + power * 310;
+    const speed = 220 + power * 340;
     state.ball.kick((aim.x / len) * speed, (aim.y / len) * speed);
     state.ball.lastTouchTeam = side;
     state.ball.lastTouchPlayer = cp;
@@ -415,7 +415,7 @@ function handlePassFor(side, rig, state) {
   const dx = (target.x + target.vx * 0.18) - state.ball.x;
   const dy = (target.y + target.vy * 0.18) - state.ball.y;
   const len = Math.hypot(dx, dy) || 1;
-  const speed = 235 + Math.min(len, 420) * 0.35;
+  const speed = 260 + Math.min(len, 520) * 0.35;
   state.ball.kick((dx / len) * speed, (dy / len) * speed);
   state.ball.lastTouchTeam = side;
   state.ball.lastTouchPlayer = cp;
