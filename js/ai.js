@@ -96,37 +96,51 @@ function updateCarrierAI(p, dt, state) {
   const goal = rivalGoalPos(p.team);
   const distToGoal = Math.hypot(goal.x - p.x, goal.y - p.y);
   const diff = diffFor(p.team, state);
+  const defender = nearestOpponent(p, state);
+  const defenderDist = defender ? dist(defender, p) : Infinity;
+  const pressured = defenderDist < 55;
 
   // shoot when close enough and reasonably centred
-  if (distToGoal < 220 && Math.abs(goal.x - p.x) < 150) {
+  if (distToGoal < 260 && Math.abs(goal.x - p.x) < 190) {
     aiKick(p, state, goal.x, goal.y, 1.0, true);
     return;
   }
 
-  // occasionally look for a forward pass to a teammate ahead of them
+  // look for a pass — more urgent (and more frequent) the tighter the marking, so a well-marked
+  // carrier actually gives the ball up instead of just bulling forward into the defender
   p.passCooldown = (p.passCooldown || 0) - dt;
-  if (p.passCooldown <= 0) {
+  if (p.passCooldown <= 0 || defenderDist < 32) {
     const dir = attackDir(p.team);
-    const mate = state.players.find((o) => o.team === p.team && o !== p && !o.isGK &&
-      (o.y - p.y) * dir > 45 && Math.abs(o.x - p.x) < 185 && dist(o, p) < 255);
-    if (mate && Math.random() < 0.5) {
+    const forwardMate = state.players.find((o) => o.team === p.team && o !== p && !o.isGK &&
+      (o.y - p.y) * dir > 55 && Math.abs(o.x - p.x) < 230 && dist(o, p) < 320);
+    // no one ahead and under pressure: lay the ball off to whichever teammate is least marked,
+    // instead of only ever considering options further upfield
+    const safeMate = !forwardMate && pressured
+      ? state.players.find((o) => o.team === p.team && o !== p && !o.isGK && dist(o, p) < 320 &&
+          nearestOpponentDist(o, state) > defenderDist + 25)
+      : null;
+    const mate = forwardMate || safeMate;
+    const passChance = pressured ? 0.75 : 0.5;
+    if (mate && Math.random() < passChance) {
       aiKick(p, state, mate.x + mate.vx * 0.2, mate.y + mate.vy * 0.2, 0.55, false);
-      p.passCooldown = 1.2;
+      p.passCooldown = pressured ? 0.5 : 1.0;
       return;
     }
-    p.passCooldown = 0.6;
+    p.passCooldown = 0.45;
   }
 
-  // dribble toward goal, weaving slightly away from nearest defender
-  const defender = nearestOpponent(p, state);
+  // dribble toward goal, weaving away from a very close defender and slowing while crowded so a
+  // chasing defender can actually close the gap and win the ball
   let steerX = goal.x - p.x;
   let steerY = goal.y - p.y;
-  if (defender && dist(defender, p) < 45) {
+  let speedScale = diff.speedMul;
+  if (defender && defenderDist < 26) {
     const awayX = p.x - defender.x, awayY = p.y - defender.y;
-    steerX += awayX * 1.4;
-    steerY += awayY * 1.4;
+    steerX += awayX * 0.8;
+    steerY += awayY * 0.8;
+    speedScale *= 0.72;
   }
-  p.steer(steerX, steerY, dt, diff.speedMul);
+  p.steer(steerX, steerY, dt, speedScale);
 }
 
 function nearestOpponent(p, state) {
@@ -139,10 +153,15 @@ function nearestOpponent(p, state) {
   return best;
 }
 
+function nearestOpponentDist(p, state) {
+  const o = nearestOpponent(p, state);
+  return o ? dist(o, p) : Infinity;
+}
+
 function aiKick(p, state, tx, ty, power, isShot) {
   const dx = tx - state.ball.x, dy = ty - state.ball.y;
   const len = Math.hypot(dx, dy) || 1;
-  const speed = (isShot ? 300 : 210) * power + Math.random() * 20;
+  const speed = (isShot ? 330 : 235) * power + Math.random() * 20;
   const baseInaccuracy = isShot ? 0.16 : 0.08;
   const inaccuracy = baseInaccuracy / diffFor(p.team, state).accuracyMul;
   const ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * inaccuracy;

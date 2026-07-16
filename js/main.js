@@ -1,7 +1,7 @@
 // Game loop, match state machine, physics resolution, scoring — wires every other module together.
 
 const HALF_SECONDS = 90;
-const TACKLE_CHANCE_PER_60FPS = 0.032;
+const TACKLE_CHANCE_PER_60FPS = 0.034;
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -298,12 +298,16 @@ function updatePossession(dt) {
     if (p.team === carrier.team || p.kickCooldown > 0) continue;
     // contest based on proximity to the ball CARRIER, not the exact ball pixel — otherwise a
     // defender closing in from behind can never reach a ball that's glued just ahead of the dribbler
-    const contestRadius = p.radius + carrier.radius + 7;
-    if (dist(p, carrier) < contestRadius) {
+    const contestRadius = p.radius + carrier.radius + 8;
+    const d = dist(p, carrier);
+    if (d < contestRadius) {
       const diffMul = diffFor(p.team, state).tackleMul;
       const isHuman = p === state.controlledPlayer || p === state.controlledPlayerB;
-      const bonus = isHuman ? 1.6 : 1;
-      const chance = TACKLE_CHANCE_PER_60FPS * bonus * diffMul * (dt * 60);
+      const bonus = isHuman ? 1.8 : 1;
+      // the tighter the marking, the more likely the tackle lands — being right on top of the
+      // carrier for a moment should reliably win the ball, not just barely nudge the odds
+      const proximity = 0.3 + (1 - d / contestRadius) * 1.4;
+      const chance = TACKLE_CHANCE_PER_60FPS * bonus * diffMul * proximity * (dt * 60);
       if (Math.random() < chance) {
         state.possessor = p;
         SFX.bounce();
@@ -346,7 +350,16 @@ function handleShootFor(side, rig, powerSide) {
 
   if (state.possessor === cp) {
     const useJoystick = Math.abs(rig.move.x) + Math.abs(rig.move.y) > 0.12;
-    const aim = useJoystick ? { x: rig.move.x, y: rig.move.y } : { x: Math.cos(cp.angle), y: Math.sin(cp.angle) };
+    let aim = useJoystick ? { x: rig.move.x, y: rig.move.y } : { x: Math.cos(cp.angle), y: Math.sin(cp.angle) };
+    // light auto-aim assist toward the rival goal when shooting from decent range, so shots that
+    // are roughly on target actually threaten the goal instead of drifting wide
+    const goal = rivalGoalPos(cp.team);
+    const goalDist = Math.hypot(goal.x - cp.x, goal.y - cp.y);
+    if (goalDist < 340) {
+      const gx = goal.x - cp.x, gy = goal.y - cp.y;
+      const glen = Math.hypot(gx, gy) || 1;
+      aim = { x: aim.x + (gx / glen) * 0.22, y: aim.y + (gy / glen) * 0.22 };
+    }
     const len = Math.hypot(aim.x, aim.y) || 1;
     const power = rig.releasedPower;
     const speed = 200 + power * 310;
@@ -360,6 +373,50 @@ function handleShootFor(side, rig, powerSide) {
     cp.vx += Math.cos(cp.angle) * 170;
     cp.vy += Math.sin(cp.angle) * 170;
   }
+}
+
+// finds the best teammate to receive a pass: prefers whoever is most aligned with the aim
+// direction, with a mild penalty for distance so a nearby option isn't skipped for a far one
+function findPassTarget(cp, state, aimX, aimY) {
+  const mates = state.players.filter((o) => o.team === cp.team && o !== cp && !o.isGK);
+  if (!mates.length) return null;
+  const aimLen = Math.hypot(aimX, aimY) || 1;
+  const ax = aimX / aimLen, ay = aimY / aimLen;
+  let best = null, bestScore = -Infinity;
+  for (const m of mates) {
+    const dx = m.x - cp.x, dy = m.y - cp.y;
+    const dlen = Math.hypot(dx, dy) || 1;
+    const align = (dx / dlen) * ax + (dy / dlen) * ay;
+    const score = align - dlen / 900;
+    if (score > bestScore) { bestScore = score; best = m; }
+  }
+  return best;
+}
+
+// side: 'A' or 'B'. rig: INPUT or INPUT2. Auto-targeted pass to a teammate — aimed with the
+// joystick/facing direction like a shot, but always finds and hits an actual teammate.
+function handlePassFor(side, rig, state) {
+  if (!rig.passPressed) return;
+  rig.passPressed = false;
+  const cp = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
+  if (!cp || state.possessor !== cp) return;
+
+  const useJoystick = Math.abs(rig.move.x) + Math.abs(rig.move.y) > 0.12;
+  const aimX = useJoystick ? rig.move.x : Math.cos(cp.angle);
+  const aimY = useJoystick ? rig.move.y : Math.sin(cp.angle);
+  const target = findPassTarget(cp, state, aimX, aimY);
+  if (!target) return;
+
+  const dx = (target.x + target.vx * 0.18) - state.ball.x;
+  const dy = (target.y + target.vy * 0.18) - state.ball.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = 235 + Math.min(len, 420) * 0.35;
+  state.ball.kick((dx / len) * speed, (dy / len) * speed);
+  state.ball.lastTouchTeam = side;
+  state.ball.lastTouchPlayer = cp;
+  state.possessor = null;
+  cp.kickCooldown = 0.16;
+  SFX.kick();
 }
 
 function handleSwitchFor(side, rig, dt) {
@@ -425,9 +482,11 @@ function update(dt) {
 
   resolveAllCollisions();
   handleShootFor('A', INPUT, 'a');
+  handlePassFor('A', INPUT, state);
   handleSwitchFor('A', INPUT, dt);
   if (state.twoPlayer) {
     handleShootFor('B', INPUT2, 'b');
+    handlePassFor('B', INPUT2, state);
     handleSwitchFor('B', INPUT2, dt);
   }
   checkGoalsAndBounds();

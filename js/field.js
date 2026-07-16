@@ -1,17 +1,17 @@
 // Field geometry (logical units) — vertical pitch, own goal at bottom, rival goal at top.
 const FIELD = {
   MARGIN: 24,
-  PITCH_W: 380,
-  PITCH_H: 660,
-  GOAL_W: 120,
-  GOAL_DEPTH: 17,
-  CENTER_R: 60,
-  BOX_W: 240,
-  BOX_D: 100,
-  SIX_W: 150,
-  SIX_D: 36,
-  PEN_SPOT_D: 78,
-  ARC_R: 60,
+  PITCH_W: 500,
+  PITCH_H: 900,
+  GOAL_W: 150,
+  GOAL_DEPTH: 20,
+  CENTER_R: 75,
+  BOX_W: 300,
+  BOX_D: 125,
+  SIX_W: 190,
+  SIX_D: 45,
+  PEN_SPOT_D: 95,
+  ARC_R: 75,
 };
 FIELD.W = FIELD.PITCH_W + FIELD.MARGIN * 2;
 FIELD.H = FIELD.PITCH_H + FIELD.MARGIN * 2;

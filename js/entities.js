@@ -23,9 +23,9 @@ class Player {
     this.homeY = y;
     this.vx = 0;
     this.vy = 0;
-    this.radius = isGK ? 13 : 12;
-    this.maxSpeed = isGK ? 128 : (role === 'FWD' ? 168 : 150);
-    this.accel = 1300;
+    this.radius = isGK ? 14 : 13;
+    this.maxSpeed = isGK ? 148 : (role === 'FWD' ? 196 : 174);
+    this.accel = 1500;
     this.angle = team === 'A' ? -Math.PI / 2 : Math.PI / 2;
     this.isControlled = false;
     this.kickCooldown = 0;
@@ -37,7 +37,10 @@ class Player {
   steer(dx, dy, dt, speedScale = 1) {
     const len = Math.hypot(dx, dy);
     let tvx = 0, tvy = 0;
-    if (len > 0.001) {
+    // below this, dx/dy is noise around a near-zero offset (e.g. a formation player already
+    // sitting on its target) — normalizing it would still yield a full-speed vector pointed in
+    // a near-random direction, making the player jitter in place and spin erratically
+    if (len > 3) {
       tvx = (dx / len) * this.maxSpeed * speedScale;
       tvy = (dy / len) * this.maxSpeed * speedScale;
       this.angle = Math.atan2(dy, dx);
@@ -146,7 +149,7 @@ class Ball {
     this.y = y;
     this.vx = 0;
     this.vy = 0;
-    this.radius = 7;
+    this.radius = 8;
     this.spin = 0;
     this.lastTouchTeam = null;
     this.lastTouchPlayer = null;
@@ -181,7 +184,7 @@ class Ball {
     this.y += this.vy * dt;
 
     const speed = Math.hypot(this.vx, this.vy);
-    const friction = Math.min(speed, 220 * dt);
+    const friction = Math.min(speed, 190 * dt);
     if (speed > 0.01) {
       this.vx -= (this.vx / speed) * friction;
       this.vy -= (this.vy / speed) * friction;
