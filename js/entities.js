@@ -38,12 +38,21 @@ class Player {
     const len = Math.hypot(dx, dy);
     let tvx = 0, tvy = 0;
     // below this, dx/dy is noise around a near-zero offset (e.g. a formation player already
-    // sitting on its target) — normalizing it would still yield a full-speed vector pointed in
-    // a near-random direction, making the player jitter in place and spin erratically
+    // sitting on its target, or two players jostling right next to each other for the ball) —
+    // normalizing it would still yield a full-speed vector pointed in a near-random direction
     if (len > 3) {
       tvx = (dx / len) * this.maxSpeed * speedScale;
       tvy = (dy / len) * this.maxSpeed * speedScale;
-      this.angle = Math.atan2(dy, dx);
+      // turn toward the desired heading at a bounded angular speed instead of snapping straight
+      // to it — a plain `this.angle = atan2(...)` can flip near-instantly back and forth whenever
+      // the desired direction itself oscillates frame to frame (e.g. jostling for the ball at
+      // close range, or a low/variable framerate), which reads as the player spinning wildly
+      const desired = Math.atan2(dy, dx);
+      const TURN_RATE = 16; // rad/s — fast enough to feel responsive, bounded enough to stay smooth
+      let diff = desired - this.angle;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      const maxTurn = TURN_RATE * dt;
+      this.angle += clamp(diff, -maxTurn, maxTurn);
     }
     const ax = tvx - this.vx;
     const ay = tvy - this.vy;

@@ -106,10 +106,13 @@ function updateCarrierAI(p, dt, state) {
     return;
   }
 
-  // look for a pass — more urgent (and more frequent) the tighter the marking, so a well-marked
-  // carrier actually gives the ball up instead of just bulling forward into the defender
+  // look for a pass — more urgent (and more frequent, via a shorter cooldown) the tighter the
+  // marking, so a well-marked carrier gives the ball up instead of just bulling into the defender.
+  // NOTE: this must stay gated by the cooldown even under pressure — re-rolling every single frame
+  // once a defender is close would let the AI offload the ball before a chasing player ever gets a
+  // chance to actually win the tackle.
   p.passCooldown = (p.passCooldown || 0) - dt;
-  if (p.passCooldown <= 0 || defenderDist < 32) {
+  if (p.passCooldown <= 0) {
     const dir = attackDir(p.team);
     const forwardMate = state.players.find((o) => o.team === p.team && o !== p && !o.isGK &&
       (o.y - p.y) * dir > 55 && Math.abs(o.x - p.x) < 230 && dist(o, p) < 320);
