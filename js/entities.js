@@ -48,7 +48,8 @@ class Player {
       // the desired direction itself oscillates frame to frame (e.g. jostling for the ball at
       // close range, or a low/variable framerate), which reads as the player spinning wildly
       const desired = Math.atan2(dy, dx);
-      const TURN_RATE = 16; // rad/s — fast enough to feel responsive, bounded enough to stay smooth
+      // The old 16 rad/s cap still allowed more than two full rotations per second.
+      const TURN_RATE = this.isControlled ? 11 : 6.5;
       let diff = desired - this.angle;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       const maxTurn = TURN_RATE * dt;

@@ -203,7 +203,7 @@ function updateCarrierAI(p, dt, state) {
   let steerX = goal.x + (p.dribbleBias || 0) * biasFade - p.x;
   let steerY = goal.y - p.y;
   let speedScale = diff.speedMul;
-  if (defender && defenderDist < 32) {
+  if (defender && defenderDist < 38 && state.possessionGrace <= 0) {
     // ease toward the escape direction instead of snapping to the raw instantaneous vector — right
     // at jostling range, that raw vector can flip almost every frame from tiny position noise
     // (collision resolution nudging both players a pixel apart, then the joystick pushing them back
@@ -219,8 +219,11 @@ function updateCarrierAI(p, dt, state) {
     steerY += p.evadeY;
     speedScale *= 0.72;
   } else {
-    p.evadeX = 0;
-    p.evadeY = 0;
+    const decay = Math.max(0, 1 - dt * 8);
+    p.evadeX = (p.evadeX || 0) * decay;
+    p.evadeY = (p.evadeY || 0) * decay;
+    steerX += p.evadeX;
+    steerY += p.evadeY;
   }
   p.steer(steerX, steerY, dt, speedScale);
 }

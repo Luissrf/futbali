@@ -9,8 +9,10 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, tackle, max
     shootDown: false,
     shootStartTime: 0,
     shootReleased: false,
+    shootQueuedUntil: 0,
     releasedPower: 0,
     passPressed: false,
+    passQueuedUntil: 0,
     switchPressed: false,
     tacklePressed: false,
     CHARGE_MAX: 0.85,
@@ -72,11 +74,16 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, tackle, max
     rig.releasedPower = Math.max(0.18, Math.min(1, held / rig.CHARGE_MAX));
     rig.shootDown = false;
     rig.shootReleased = true;
+    rig.shootQueuedUntil = performance.now() + 550;
   }
   shootBtn.addEventListener('pointerdown', startShoot);
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => shootBtn.addEventListener(ev, endShoot));
 
-  passBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.passPressed = true; });
+  passBtnEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    rig.passPressed = true;
+    rig.passQueuedUntil = performance.now() + 550;
+  });
   switchBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.switchPressed = true; });
   tackleBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.tacklePressed = true; });
 
@@ -87,6 +94,7 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, tackle, max
     rig.releasedPower = Math.max(0.18, Math.min(1, held / rig.CHARGE_MAX));
     rig.shootDown = false;
     rig.shootReleased = true;
+    rig.shootQueuedUntil = performance.now() + 550;
   };
 
   // called on kickoff (incl. after a goal) so a finger left resting on the joystick/shoot button
@@ -100,7 +108,9 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, tackle, max
     resetJoystick();
     rig.shootDown = false;
     rig.shootReleased = false;
+    rig.shootQueuedUntil = 0;
     rig.passPressed = false;
+    rig.passQueuedUntil = 0;
     rig.switchPressed = false;
     rig.tacklePressed = false;
   };
@@ -127,7 +137,11 @@ function wireKeyboard(rig, map) {
     else if (map.left.includes(e.code)) { keys.left = true; recompute(); }
     else if (map.right.includes(e.code)) { keys.right = true; recompute(); }
     else if (map.shoot.includes(e.code)) { e.preventDefault(); rig._keyShootDown(); }
-    else if (map.pass.includes(e.code)) { e.preventDefault(); rig.passPressed = true; }
+    else if (map.pass.includes(e.code)) {
+      e.preventDefault();
+      rig.passPressed = true;
+      rig.passQueuedUntil = performance.now() + 550;
+    }
     else if (map.tackle.includes(e.code)) { e.preventDefault(); rig.tacklePressed = true; }
     else if (map.switchKey.includes(e.code)) { rig.switchPressed = true; }
   });

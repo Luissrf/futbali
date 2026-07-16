@@ -359,11 +359,15 @@ function handleShootFor(side, rig, powerSide) {
   }
 
   if (!rig.shootReleased) return;
-  rig.shootReleased = false;
+  if (performance.now() > (rig.shootQueuedUntil || 0)) {
+    rig.shootReleased = false;
+    return;
+  }
   const cp = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
   if (!cp) return;
 
   if (state.possessor === cp) {
+    rig.shootReleased = false;
     const useJoystick = Math.abs(rig.move.x) + Math.abs(rig.move.y) > 0.12;
     let aim = useJoystick ? { x: rig.move.x, y: rig.move.y } : { x: Math.cos(cp.angle), y: Math.sin(cp.angle) };
     // light auto-aim assist toward the rival goal when shooting from decent range, so shots that
@@ -384,9 +388,6 @@ function handleShootFor(side, rig, powerSide) {
     state.possessor = null;
     cp.kickCooldown = 0.16;
     SFX.kick();
-  } else {
-    cp.vx += Math.cos(cp.angle) * 170;
-    cp.vy += Math.sin(cp.angle) * 170;
   }
 }
 
@@ -412,9 +413,13 @@ function findPassTarget(cp, state, aimX, aimY) {
 // joystick/facing direction like a shot, but always finds and hits an actual teammate.
 function handlePassFor(side, rig, state) {
   if (!rig.passPressed) return;
-  rig.passPressed = false;
+  if (performance.now() > (rig.passQueuedUntil || 0)) {
+    rig.passPressed = false;
+    return;
+  }
   const cp = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
   if (!cp || state.possessor !== cp) return;
+  rig.passPressed = false;
 
   const useJoystick = Math.abs(rig.move.x) + Math.abs(rig.move.y) > 0.12;
   const aimX = useJoystick ? rig.move.x : Math.cos(cp.angle);
