@@ -12,6 +12,7 @@ const state = {
   controlledPlayer: null,
   controlledPlayerB: null, // set only in 2-player mode
   possessor: null,
+  possessionGrace: 0, // seconds of immunity after a tackle before possession can be contested again
   teamA: null,
   teamB: null,
   scoreA: 0,
@@ -283,6 +284,12 @@ function updatePossession(dt) {
   const ball = state.ball;
   const pickupR = (p) => p.radius + ball.radius + 3;
 
+  // brief immunity right after any tackle (this contest, or the deliberate QUITAR button) so the
+  // player who just lost the ball can't instantly win it straight back — without this, two players
+  // jostling at contest range would flip possession back and forth almost every frame, which reads
+  // as "I win the ball but then can't shoot or pass" because it's gone again before you can react
+  state.possessionGrace = Math.max(0, (state.possessionGrace || 0) - dt);
+
   if (!state.possessor) {
     let best = null, bestD = Infinity;
     for (const p of state.players) {
@@ -297,6 +304,8 @@ function updatePossession(dt) {
     }
     return;
   }
+
+  if (state.possessionGrace > 0) return;
 
   const carrier = state.possessor;
   for (const p of state.players) {
@@ -315,6 +324,7 @@ function updatePossession(dt) {
       const chance = TACKLE_CHANCE_PER_60FPS * bonus * diffMul * proximity * (dt * 60);
       if (Math.random() < chance) {
         state.possessor = p;
+        state.possessionGrace = 0.45;
         SFX.bounce();
         if (isHuman) state.matchTackles++;
         if (p === state.controlledPlayer) COMMENTARY.tackle();
@@ -446,6 +456,7 @@ function handleTackleFor(side, rig, dt) {
   const chance = clamp(0.85 - (d / range) * 0.45, 0.35, 0.85); // closer = much more likely to land
   if (Math.random() < chance) {
     state.possessor = cp;
+    state.possessionGrace = 0.45;
     state.matchTackles++;
     SFX.bounce();
     COMMENTARY.tackle();

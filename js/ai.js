@@ -204,10 +204,23 @@ function updateCarrierAI(p, dt, state) {
   let steerY = goal.y - p.y;
   let speedScale = diff.speedMul;
   if (defender && defenderDist < 32) {
+    // ease toward the escape direction instead of snapping to the raw instantaneous vector — right
+    // at jostling range, that raw vector can flip almost every frame from tiny position noise
+    // (collision resolution nudging both players a pixel apart, then the joystick pushing them back
+    // together), which fed a wildly oscillating target into steer() and looked like fast spinning
+    // even with its turn-rate cap
     const awayX = p.x - defender.x, awayY = p.y - defender.y;
-    steerX += awayX * 0.8;
-    steerY += awayY * 0.8;
+    const alen = Math.hypot(awayX, awayY) || 1;
+    const targetEvX = (awayX / alen) * 60, targetEvY = (awayY / alen) * 60;
+    const ease = Math.min(1, dt * 6);
+    p.evadeX = (p.evadeX || 0) + (targetEvX - (p.evadeX || 0)) * ease;
+    p.evadeY = (p.evadeY || 0) + (targetEvY - (p.evadeY || 0)) * ease;
+    steerX += p.evadeX;
+    steerY += p.evadeY;
     speedScale *= 0.72;
+  } else {
+    p.evadeX = 0;
+    p.evadeY = 0;
   }
   p.steer(steerX, steerY, dt, speedScale);
 }
