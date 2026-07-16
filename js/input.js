@@ -86,6 +86,21 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, maxR }) {
     rig.shootReleased = true;
   };
 
+  // called on kickoff (incl. after a goal) so a finger left resting on the joystick/shoot button
+  // through the goal-celebration overlay can't leave the rig stuck in a mid-gesture state once
+  // play resumes — the game-state pause during the celebration means none of this gets consumed
+  // or cleared by the normal update loop while it's frozen
+  rig.reset = () => {
+    if (pointerId !== null) {
+      try { zoneEl.releasePointerCapture(pointerId); } catch (e) { /* already released */ }
+    }
+    resetJoystick();
+    rig.shootDown = false;
+    rig.shootReleased = false;
+    rig.passPressed = false;
+    rig.switchPressed = false;
+  };
+
   return rig;
 }
 

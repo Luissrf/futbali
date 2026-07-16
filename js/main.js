@@ -63,6 +63,11 @@ function setupKickoff(kickingTeam) {
   state.ball.x = FIELD.CX; state.ball.y = FIELD.CY;
   state.ball.vx = 0; state.ball.vy = 0; state.ball.trail = [];
   state.possessor = state.players.find((p) => p.team === kickingTeam && p.role === 'MID');
+  // a finger can be resting on the joystick/shoot button through the frozen goal-celebration
+  // window (the update loop that would normally consume/clear these is paused), so force both
+  // rigs back to neutral here rather than risk carrying a stale gesture into the new kickoff
+  INPUT.reset();
+  INPUT2.reset();
 }
 
 // trackProgress=false is used only for the cosmetic idle match built behind the splash/menu at
@@ -154,14 +159,14 @@ function triggerGoal(scoringTeam) {
     state.streakA++; state.streakB = 0;
     SFX.goal();
     COMMENTARY.goalHuman();
-    EASTER_EGGS.confetti(90);
+    EASTER_EGGS.confetti(36);
     EASTER_EGGS.checkStreak(state.streakA);
   } else {
     state.scoreB++;
     state.streakB++; state.streakA = 0;
     SFX.goal();
     COMMENTARY.goalRival();
-    EASTER_EGGS.confetti(25);
+    EASTER_EGGS.confetti(16);
   }
   UI.updateHud(state);
   UI.flashGoal(scoringTeam === 'A' ? `¡GOL DE ${state.teamA.name.toUpperCase()}!` : `¡GOL DE ${state.teamB.name.toUpperCase()}!`);
@@ -219,7 +224,7 @@ function handleHalfEnd() {
         t.stage++;
         const next = t.opponents[t.stage];
         COMMENTARY.fulltime('win');
-        EASTER_EGGS.confetti(55);
+        EASTER_EGGS.confetti(30);
         UI.showMatchEnd({
           title: `¡GANASTE LA FASE ${t.stage}!`,
           scoreLine,
@@ -234,7 +239,7 @@ function handleHalfEnd() {
         });
       } else if (won) {
         COMMENTARY.say(`¡Sos el campeón del torneo, ${COMMENTARY.STAR_NAME}! Un crack total.`);
-        EASTER_EGGS.confetti(150);
+        EASTER_EGGS.confetti(50);
         const champ = PROGRESS.recordTournamentChampion();
         const achLine = champ.achievement ? ` · 🏅 ${champ.achievement.text} (+${champ.achievement.reward} 🪙)` : '';
         EASTER_EGGS.toast(`🏆 +${champ.coinsEarned} 🪙 de campeón${achLine}`, 4000);
@@ -505,11 +510,20 @@ function render() {
 
 let lastTs = 0;
 function loop(ts) {
-  const dt = Math.min((ts - lastTs) / 1000 || 0, 0.033);
-  lastTs = ts;
-  if (state.phase === 'playing') update(dt);
-  render();
-  requestAnimationFrame(loop);
+  // an uncaught error anywhere in here would otherwise abort this function before it reaches the
+  // requestAnimationFrame call, permanently freezing the whole game (no more input, no more
+  // rendering) on whatever one-off condition triggered it — the try/finally guarantees the loop
+  // keeps scheduling itself even if a single frame's simulation or render blows up
+  try {
+    const dt = Math.min((ts - lastTs) / 1000 || 0, 0.033);
+    lastTs = ts;
+    if (state.phase === 'playing') update(dt);
+    render();
+  } catch (err) {
+    console.error('game loop frame failed, recovering:', err);
+  } finally {
+    requestAnimationFrame(loop);
+  }
 }
 
 function togglePause() {
