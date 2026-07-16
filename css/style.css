@@ -140,12 +140,18 @@ html, body {
   box-shadow: 0 2px 6px rgba(0,0,0,0.35);
 }
 
-#action-zone {
-  display: flex;
-  align-items: flex-end;
-  gap: clamp(4px, 2vw, 8px);
+/* 2x2 grid: row order in the HTML controls which row things land in (grid auto-flow is row-major
+   by default) — for P1 (bottom-anchored) that puts CAMBIAR/QUITAR on top and PASE/TIRO on the
+   bottom row, closest to the thumb; P2's markup order puts TIRO/PASE on its top (edge-adjacent) row */
+#action-zone, #action-zone-p2 {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: clamp(6px, 2vw, 10px);
+  justify-items: center;
   pointer-events: auto;
 }
+#action-zone { align-items: end; }
+#action-zone-p2 { align-items: start; }
 
 .action-btn {
   border: none;
@@ -167,7 +173,9 @@ html, body {
   font-size: 9px;
   background: radial-gradient(circle at 35% 30%, #5ea8ff, #2f6fed 70%);
   box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-  margin-bottom: 14px;
+}
+.action-btn.small.tackle {
+  background: radial-gradient(circle at 35% 30%, #ffcf5c, #c98a12 70%);
 }
 .action-btn.medium {
   width: clamp(46px, 14.5vw, 58px);
@@ -175,7 +183,6 @@ html, body {
   font-size: 10px;
   background: radial-gradient(circle at 35% 30%, #7ee787, #1f9d55 70%);
   box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-  margin-bottom: 8px;
 }
 .action-btn:active { filter: brightness(0.85); }
 
@@ -239,10 +246,9 @@ html, body {
   top: 26px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.35);
 }
-#action-zone-p2 { display: flex; align-items: flex-start; gap: 8px; pointer-events: auto; }
-#action-zone-p2 .action-btn.big { width: 68px; height: 68px; font-size: 12px; }
-#action-zone-p2 .action-btn.medium { width: 54px; height: 54px; font-size: 9px; margin-top: 8px; margin-bottom: 0; }
-#action-zone-p2 .action-btn.small { width: 46px; height: 46px; font-size: 8px; margin-top: 10px; margin-bottom: 0; }
+#action-zone-p2 .action-btn.big { width: clamp(52px, 16vw, 68px); height: clamp(52px, 16vw, 68px); font-size: 12px; }
+#action-zone-p2 .action-btn.medium { width: clamp(38px, 11.5vw, 54px); height: clamp(38px, 11.5vw, 54px); font-size: 9px; }
+#action-zone-p2 .action-btn.small { width: clamp(32px, 10vw, 46px); height: clamp(32px, 10vw, 46px); font-size: 8px; }
 
 #power-meter-p2 {
   position: absolute;

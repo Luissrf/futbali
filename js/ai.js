@@ -37,6 +37,15 @@ function homePosition(team, lx, ly) {
 function updateAI(dt, state) {
   const { players, ball } = state;
 
+  // one chaser per team goes straight for the ball; when the OTHER team has it, a second nearby
+  // teammate also closes the carrier down (like a real defense pressing in twos) instead of the
+  // rest of the team just holding a passive shape — this also means there's usually someone
+  // close enough for the human's QUITAR button (or a passive contest) to actually have a shot
+  const chaserA = getChaser('A', state);
+  const chaserB = getChaser('B', state);
+  const presserA = getPresser('A', state, chaserA);
+  const presserB = getPresser('B', state, chaserB);
+
   for (const p of players) {
     if (p === state.controlledPlayer || p === state.controlledPlayerB) continue;
     if (p.isGK) { updateGoalkeeper(p, dt, state); continue; }
@@ -47,9 +56,14 @@ function updateAI(dt, state) {
       continue;
     }
 
-    const chaser = getChaser(p.team, state);
+    const chaser = p.team === 'A' ? chaserA : chaserB;
+    const presser = p.team === 'A' ? presserA : presserB;
+    const oppositionHasBall = state.possessor && state.possessor.team !== p.team;
+
     if (chaser === p) {
       chase(p, ball, dt, diffFor(p.team, state).speedMul);
+    } else if (presser === p && oppositionHasBall && dist(p, state.possessor) < 260) {
+      pressBallCarrier(p, state, dt);
     } else {
       supportFormation(p, dt, state);
     }
@@ -67,10 +81,38 @@ function getChaser(team, state) {
   return best;
 }
 
+// second-closest outfield player on the team, excluding the primary chaser — the one who closes
+// down the ball carrier alongside the chaser when the opponent has possession
+function getPresser(team, state, exclude) {
+  let best = null, bestD = Infinity;
+  for (const p of state.players) {
+    if (p.team !== team || p.isGK || p === exclude) continue;
+    const d = dist(p, state.ball);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
+
 function chase(p, ball, dt, urgency) {
   const leadX = ball.x + ball.vx * 0.12;
   const leadY = ball.y + ball.vy * 0.12;
   p.steer(leadX - p.x, leadY - p.y, dt, urgency);
+}
+
+// close down the ball carrier directly, but stop just short of shoving distance so this defender
+// doesn't stack on top of the primary chaser already contesting the ball
+function pressBallCarrier(p, state, dt) {
+  const carrier = state.possessor;
+  const standoff = p.radius + carrier.radius + 14;
+  const dx = carrier.x - p.x, dy = carrier.y - p.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const urgency = diffFor(p.team, state).speedMul;
+  if (d > standoff) {
+    p.steer(dx, dy, dt, urgency * 0.9);
+  } else {
+    // hold the marking distance, tracking the carrier's drift rather than freezing in place
+    p.steer(dx * 0.2, dy * 0.2, dt, urgency * 0.4);
+  }
 }
 
 function supportFormation(p, dt, state) {

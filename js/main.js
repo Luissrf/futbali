@@ -424,6 +424,38 @@ function handlePassFor(side, rig, state) {
   SFX.kick();
 }
 
+// side: 'A' or 'B'. rig: INPUT or INPUT2. A deliberate, player-initiated tackle attempt — reaches
+// a bit further than the passive contest in updatePossession() and has a much better success
+// chance, since pressing the button is a clear intent to go for the ball rather than incidental
+// contact. Has its own cooldown (independent of kickCooldown) so it can't be mashed for free rolls.
+function handleTackleFor(side, rig, dt) {
+  rig.tackleCooldown = Math.max(0, (rig.tackleCooldown || 0) - dt);
+  if (!rig.tacklePressed) return;
+  rig.tacklePressed = false;
+  if (rig.tackleCooldown > 0) return;
+
+  const cp = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
+  const carrier = state.possessor;
+  if (!cp || !carrier || carrier.team === cp.team) return; // nothing to win back
+
+  const range = cp.radius + carrier.radius + 24; // a deliberate lunge reaches further than passive contact
+  const d = dist(cp, carrier);
+  if (d > range) return;
+
+  rig.tackleCooldown = 0.7;
+  const chance = clamp(0.85 - (d / range) * 0.45, 0.35, 0.85); // closer = much more likely to land
+  if (Math.random() < chance) {
+    state.possessor = cp;
+    state.matchTackles++;
+    SFX.bounce();
+    COMMENTARY.tackle();
+  } else {
+    // mistimed lunge costs a bit of momentum, so spamming the button isn't free
+    cp.vx *= 0.3;
+    cp.vy *= 0.3;
+  }
+}
+
 function handleSwitchFor(side, rig, dt) {
   const team = side === 'A' ? 'A' : 'B';
   const current = side === 'A' ? state.controlledPlayer : state.controlledPlayerB;
@@ -497,10 +529,12 @@ function update(dt) {
   resolveAllCollisions();
   handleShootFor('A', INPUT, 'a');
   handlePassFor('A', INPUT, state);
+  handleTackleFor('A', INPUT, dt);
   handleSwitchFor('A', INPUT, dt);
   if (state.twoPlayer) {
     handleShootFor('B', INPUT2, 'b');
     handlePassFor('B', INPUT2, state);
+    handleTackleFor('B', INPUT2, dt);
     handleSwitchFor('B', INPUT2, dt);
   }
   checkGoalsAndBounds();

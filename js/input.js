@@ -3,7 +3,7 @@
 // Rigs report raw, un-mirrored vectors — any left/right inversion for a player seated at the
 // opposite edge of the screen is applied where the vector is consumed (main.js), not here.
 
-function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, maxR }) {
+function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, tackle, maxR }) {
   const rig = {
     move: { x: 0, y: 0 },
     shootDown: false,
@@ -12,6 +12,7 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, maxR }) {
     releasedPower: 0,
     passPressed: false,
     switchPressed: false,
+    tacklePressed: false,
     CHARGE_MAX: 0.85,
   };
 
@@ -21,6 +22,7 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, maxR }) {
   const shootBtn = document.getElementById(shoot);
   const passBtnEl = document.getElementById(pass);
   const switchBtnEl = document.getElementById(switchBtn);
+  const tackleBtnEl = document.getElementById(tackle);
   const radius = maxR || 38;
   let pointerId = null;
 
@@ -76,6 +78,7 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, maxR }) {
 
   passBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.passPressed = true; });
   switchBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.switchPressed = true; });
+  tackleBtnEl.addEventListener('pointerdown', (e) => { e.preventDefault(); rig.tacklePressed = true; });
 
   rig._keyShootDown = () => { if (!rig.shootDown) { rig.shootDown = true; rig.shootStartTime = performance.now(); } };
   rig._keyShootUp = () => {
@@ -99,6 +102,7 @@ function createTouchRig({ zone, base, stick, shoot, pass, switchBtn, maxR }) {
     rig.shootReleased = false;
     rig.passPressed = false;
     rig.switchPressed = false;
+    rig.tacklePressed = false;
   };
 
   return rig;
@@ -124,6 +128,7 @@ function wireKeyboard(rig, map) {
     else if (map.right.includes(e.code)) { keys.right = true; recompute(); }
     else if (map.shoot.includes(e.code)) { e.preventDefault(); rig._keyShootDown(); }
     else if (map.pass.includes(e.code)) { e.preventDefault(); rig.passPressed = true; }
+    else if (map.tackle.includes(e.code)) { e.preventDefault(); rig.tacklePressed = true; }
     else if (map.switchKey.includes(e.code)) { rig.switchPressed = true; }
   });
   window.addEventListener('keyup', (e) => {
@@ -135,8 +140,8 @@ function wireKeyboard(rig, map) {
   });
 }
 
-const INPUT = createTouchRig({ zone: 'joystick-zone', base: 'joystick-base', stick: 'joystick-stick', shoot: 'btn-shoot', pass: 'btn-pass', switchBtn: 'btn-switch', maxR: 38 });
-const INPUT2 = createTouchRig({ zone: 'joystick-zone-p2', base: 'joystick-base-p2', stick: 'joystick-stick-p2', shoot: 'btn-shoot-p2', pass: 'btn-pass-p2', switchBtn: 'btn-switch-p2', maxR: 33 });
+const INPUT = createTouchRig({ zone: 'joystick-zone', base: 'joystick-base', stick: 'joystick-stick', shoot: 'btn-shoot', pass: 'btn-pass', switchBtn: 'btn-switch', tackle: 'btn-tackle', maxR: 38 });
+const INPUT2 = createTouchRig({ zone: 'joystick-zone-p2', base: 'joystick-base-p2', stick: 'joystick-stick-p2', shoot: 'btn-shoot-p2', pass: 'btn-pass-p2', switchBtn: 'btn-switch-p2', tackle: 'btn-tackle-p2', maxR: 33 });
 
-wireKeyboard(INPUT, { up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], shoot: ['Space'], pass: ['KeyE'], switchKey: ['KeyQ'] });
-wireKeyboard(INPUT2, { up: ['Numpad8'], down: ['Numpad5', 'Numpad2'], left: ['Numpad4'], right: ['Numpad6'], shoot: ['NumpadEnter', 'Enter'], pass: ['Numpad9'], switchKey: ['NumpadAdd'] });
+wireKeyboard(INPUT, { up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], shoot: ['Space'], pass: ['KeyE'], tackle: ['ShiftLeft'], switchKey: ['KeyQ'] });
+wireKeyboard(INPUT2, { up: ['Numpad8'], down: ['Numpad5', 'Numpad2'], left: ['Numpad4'], right: ['Numpad6'], shoot: ['NumpadEnter', 'Enter'], pass: ['Numpad9'], tackle: ['Numpad7'], switchKey: ['NumpadAdd'] });
